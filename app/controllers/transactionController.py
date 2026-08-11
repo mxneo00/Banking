@@ -3,7 +3,7 @@
 from typing import Optional
 from fastapi import APIRouter, status, Query
 from models.schemas import TransferRequest
-from services import transaction_service
+from app.services import transactionService
 
 router = APIRouter(prefix="/api/v1/transactions", tags=["transactions"])
 
@@ -11,7 +11,7 @@ router = APIRouter(prefix="/api/v1/transactions", tags=["transactions"])
 @router.post("/transfer", status_code=201)
 def transfer_money(payload: TransferRequest):
     """Process a money transfer between two accounts and return the serialized record."""
-    transaction = transaction_service.process_transfer(
+    transaction = transactionService.process_transfer(
         from_account_id=payload.from_account_id,
         to_account_id=payload.to_account_id,
         amount=payload.amount,
@@ -24,7 +24,7 @@ def transfer_money(payload: TransferRequest):
 def list_transactions(start_date: Optional[str] = None, transaction_type: Optional[str] = None):
     """Return all transactions, optionally filtered by start date or type."""
     # FastAPI parses the query parameters for us.
-    transactions = transaction_service.list_transactions(
+    transactions = transactionService.list_transactions(
         start_date=start_date, 
         transaction_type=transaction_type
     )
@@ -34,7 +34,7 @@ def list_transactions(start_date: Optional[str] = None, transaction_type: Option
 @router.get("/{transaction_id}")
 def get_transaction(transaction_id: str):
     """Fetch a single transaction by ID; raises 404 if not found."""
-    return transaction_service.get_transaction(transaction_id).to_dict()
+    return transactionService.get_transaction(transaction_id).to_dict()
 
 # Note: PUT (update) and DELETE (deactivate) are intentionally omitted for 
 # transactions to maintain immutable ledger constraints.
