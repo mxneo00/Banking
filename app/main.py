@@ -36,13 +36,13 @@ app.include_router(transaction_router)
 @app.on_event("startup")
 def on_startup():
     """Create Postgres tables, seed demo accounts, then in-memory demo data."""
-    from models.database import init_db, seed_demo_accounts
+    from models.database import SessionLocal, init_db, seed_demo_accounts
+    from seedData import seed_demo_data
 
     init_db()
+    with SessionLocal() as db:
+        seed_demo_data(db)
     seed_demo_accounts()
-
-    from seedData import seed_demo_data
-    seed_demo_data()
 
 """ 
 Error handlers: map each domain exception (and FastAPI's own request validation errors) to the HTTP status code it should produce.

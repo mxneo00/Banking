@@ -114,10 +114,20 @@ def init_db():
     Base.metadata.create_all(bind=engine)
 
 
-def reset_db():
+def reset_db(confirm: bool = False):
     """Drop all tables and recreate them. Dev/reset use only."""
+    if not confirm:
+        raise ValueError("You must pass confirm=True to reset the database.")
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
+
+def reset_and_seed_db(confirm: bool = False):
+    """Drop all tables, recreate them, and seed demo accounts. Dev/reset use only."""
+    if not confirm:
+        raise ValueError("You must pass confirm=True to reset the database.")
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    seed_demo_accounts()
 
 
 def seed_demo_accounts():
