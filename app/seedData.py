@@ -8,6 +8,12 @@ separately by models.database.seed_demo_accounts() during startup.
 from models.domain import Branch, Customer
 from models.repository import repository
 
+DEMO_CUSTOMERS = [
+    ("CUST-01", "Aisha Khan", "aisha@example.com", "BR001"),
+    ("CUST-02", "Ben Owusu", "ben@example.com", "BR001"),
+    ("CUST-03", "Chen Wei", "chen@example.com", "BR002"),
+]
+
 
 def seed_demo_data():
     """Create two branches and three in-memory customers."""

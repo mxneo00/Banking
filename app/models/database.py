@@ -84,6 +84,21 @@ class Transaction(Base):
     type = Column(String, nullable=False)
     timestamp = Column(DateTime(timezone=True), nullable=False)
 
+class CustomerDB(Base):
+    """A minimal, Postgres-backed customer -- just enough for transactions to
+    move real money between real rows. `customer_id` matches the ids the
+    rest of the app already uses (e.g. "CUST-01", or "CUST-123" for manual
+    testing/demo data).
+    """
+
+    __tablename__ = "customers"
+
+    customer_id = Column(String, primary_key=True)
+    name = Column(String, nullable=False)
+    email = Column(String, nullable=False)
+    branch_id = Column(String, nullable=False)
+    is_active = Column(Boolean, nullable=False, default=True)
+
 
 def init_db():
     """Create tables that don't exist yet.
