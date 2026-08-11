@@ -16,7 +16,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from controllers.accountController import router as account_router
 from controllers.customerController import router as customer_router
-from app.controllers.transactionController import router as transaction_router
+from controllers.transactionController import router as transaction_router
 
 from models.exceptions import (
     BankingError,
@@ -28,7 +28,7 @@ from models.exceptions import (
 
 app = FastAPI(title="Bank Management API")
 
-app.include_router(branch_router)
+#app.include_router(branch_router)
 app.include_router(customer_router)
 app.include_router(account_router)
 app.include_router(transaction_router)
