@@ -63,14 +63,3 @@ def get_account(db: Session, account_number: str) -> AccountModel:
     if account is None:
         raise NotFoundError(f"Account '{account_number}' does not exist.")
     return account
-
-
-def deposit(db: Session, account_number: str, amount: float) -> AccountModel:
-    """Add a positive amount to an account balance."""
-    if amount <= 0:
-        raise ValidationError("Deposit amount must be greater than zero.")
-
-    account = get_account(db, account_number)
-    account.balance = round(account.balance + float(amount), 2)
-    db.flush()
-    return account
