@@ -50,6 +50,38 @@ class TestCreateTransactionEndpoint:
         )
         assert response.status_code == 422  # amount is required on TransactionCreate
 
+    def test_withdrawal_debits_the_account(self, client):
+        response = client.post(
+            "/api/v1/transactions",
+            json={"from_account": "ACC-123", "amount": 50.0, "transaction_type": "Withdrawal"},
+        )
+        assert response.status_code == 201
+        body = response.json()
+        assert body["type"] == "Withdrawal"
+        assert body["from_account_id"] == "ACC-123"
+        assert body["to_account_id"] is None
+
+    def test_deposit_rejects_a_from_account(self, client):
+        response = client.post(
+            "/api/v1/transactions",
+            json={
+                "from_account": "ACC-123", "to_account": "ACC-456",
+                "amount": 50.0, "transaction_type": "Deposit",
+            },
+        )
+        assert response.status_code == 400
+
+    def test_transfer_via_create_transaction_moves_both_accounts(self, client):
+        response = client.post(
+            "/api/v1/transactions",
+            json={
+                "from_account": "ACC-123", "to_account": "ACC-456",
+                "amount": 100.0, "transaction_type": "Transfer",
+            },
+        )
+        assert response.status_code == 201
+        assert response.json()["type"] == "Transfer"
+
 
 # ---------------------------------------------------------------------------
 # POST /api/v1/transactions/transfer

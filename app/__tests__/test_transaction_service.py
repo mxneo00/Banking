@@ -18,8 +18,8 @@ def _balance(account_number):
         return session.get(AccountORM, account_number).balance
 
 
-class TestCreateTransaction:
-    def test_creates_a_deposit_style_record(self):
+class TestCreateTransactionDeposit:
+    def test_credits_the_account(self):
         result = transactionService.create_transaction({
             "to_account": "ACC-123", "amount": 100.0, "transaction_type": "Deposit",
         })
@@ -27,6 +27,20 @@ class TestCreateTransaction:
         assert result["to_account_id"] == "ACC-123"
         assert result["from_account_id"] is None
         assert result["amount"] == 100.0
+        assert _balance("ACC-123") == 5100.0
+
+    def test_requires_to_account(self):
+        with pytest.raises(HTTPException) as exc_info:
+            transactionService.create_transaction({"amount": 100.0, "transaction_type": "Deposit"})
+        assert exc_info.value.status_code == 400
+
+    def test_rejects_a_from_account(self):
+        with pytest.raises(HTTPException) as exc_info:
+            transactionService.create_transaction({
+                "from_account": "ACC-123", "to_account": "ACC-456",
+                "amount": 100.0, "transaction_type": "Deposit",
+            })
+        assert exc_info.value.status_code == 400
 
     def test_raises_404_for_an_unknown_account(self):
         # to_account_id is a real foreign key onto accounts, so this is
@@ -37,6 +51,58 @@ class TestCreateTransaction:
             })
         assert exc_info.value.status_code == 404
 
+
+class TestCreateTransactionWithdrawal:
+    def test_debits_the_account(self):
+        result = transactionService.create_transaction({
+            "from_account": "ACC-123", "amount": 100.0, "transaction_type": "Withdrawal",
+        })
+        assert result["type"] == "Withdrawal"
+        assert result["from_account_id"] == "ACC-123"
+        assert result["to_account_id"] is None
+        assert _balance("ACC-123") == 4900.0
+
+    def test_requires_from_account(self):
+        with pytest.raises(HTTPException) as exc_info:
+            transactionService.create_transaction({"amount": 100.0, "transaction_type": "Withdrawal"})
+        assert exc_info.value.status_code == 400
+
+    def test_rejects_a_to_account(self):
+        with pytest.raises(HTTPException) as exc_info:
+            transactionService.create_transaction({
+                "from_account": "ACC-123", "to_account": "ACC-456",
+                "amount": 100.0, "transaction_type": "Withdrawal",
+            })
+        assert exc_info.value.status_code == 400
+
+    def test_rejects_insufficient_funds(self):
+        with pytest.raises(HTTPException) as exc_info:
+            transactionService.create_transaction({
+                "from_account": "ACC-456", "amount": 99999.0, "transaction_type": "Withdrawal",
+            })
+        assert exc_info.value.status_code == 400
+        assert _balance("ACC-456") == 250.0
+
+
+class TestCreateTransactionTransfer:
+    def test_delegates_to_process_transfer(self):
+        result = transactionService.create_transaction({
+            "from_account": "ACC-123", "to_account": "ACC-456",
+            "amount": 100.0, "transaction_type": "Transfer",
+        })
+        assert result["type"] == "Transfer"
+        assert _balance("ACC-123") == 4900.0
+        assert _balance("ACC-456") == 350.0
+
+    def test_requires_both_accounts(self):
+        with pytest.raises(HTTPException) as exc_info:
+            transactionService.create_transaction({
+                "from_account": "ACC-123", "amount": 100.0, "transaction_type": "Transfer",
+            })
+        assert exc_info.value.status_code == 400
+
+
+class TestCreateTransactionValidation:
     def test_rejects_invalid_transaction_type(self):
         with pytest.raises(HTTPException) as exc_info:
             transactionService.create_transaction({

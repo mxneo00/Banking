@@ -31,10 +31,16 @@ def _serialize(transaction: TransactionORM) -> dict:
 
 
 def create_transaction(txn_data: dict) -> dict:
-    """Record a transaction directly -- no balance movement, just a ledger
-    row. Useful for deposit/withdrawal-style entries that don't need
-    process_transfer's two-account dance. Expects the shape of
-    TransactionCreate: from_account, to_account, amount, transaction_type.
+    """Create a transaction and apply its real balance effect, dispatched by
+    transaction_type. Each type needs a different subset of accounts -- you
+    don't pass both from_account and to_account for everything:
+
+      - Deposit:    to_account only    -> credits that account.
+      - Withdrawal: from_account only  -> debits that account.
+      - Transfer:   both               -> delegates to process_transfer.
+
+    Expects the shape of TransactionCreate: from_account, to_account,
+    amount, transaction_type.
     """
     try:
         tx_type = TransactionType(txn_data.get("transaction_type"))
@@ -51,21 +57,55 @@ def create_transaction(txn_data: dict) -> dict:
 
     from_account_id = txn_data.get("from_account") or txn_data.get("from_account_id")
     to_account_id = txn_data.get("to_account") or txn_data.get("to_account_id")
+    description = txn_data.get("description")
 
+    if tx_type is TransactionType.TRANSFER:
+        if not from_account_id or not to_account_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A transfer requires both from_account and to_account.",
+            )
+        return process_transfer(from_account_id, to_account_id, amount, description)
+
+    if tx_type is TransactionType.DEPOSIT:
+        if not to_account_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A deposit requires to_account.")
+        if from_account_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A deposit should not include from_account.")
+        return _apply_single_account_transaction(to_account_id, amount, tx_type, description, credit=True)
+
+    # WITHDRAWAL
+    if not from_account_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A withdrawal requires from_account.")
+    if to_account_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A withdrawal should not include to_account.")
+    return _apply_single_account_transaction(from_account_id, amount, tx_type, description, credit=False)
+
+
+def _apply_single_account_transaction(
+    account_id: str, amount: float, tx_type: TransactionType, description: Optional[str], credit: bool
+) -> dict:
+    """Deposit into (credit=True) or withdraw from (credit=False) one account."""
     with SessionLocal() as session:
-        # `to_account_id`/`from_account_id` are foreign keys onto accounts,
-        # so an unknown account would otherwise surface as a raw, unhandled
-        # IntegrityError (-> 500) instead of a clean 404. Check up front.
-        for account_id in (from_account_id, to_account_id):
-            if account_id and session.get(AccountORM, account_id) is None:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Account '{account_id}' not found.")
+        account = session.get(AccountORM, account_id)
+        if account is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Account '{account_id}' not found.")
+        if not account.is_active:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Account '{account_id}' is inactive.")
+
+        if credit:
+            account.balance += amount
+        else:
+            if account.balance < amount:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Insufficient funds.")
+            account.balance -= amount
 
         transaction = TransactionORM(
             id=str(uuid.uuid4()),
-            from_account_id=from_account_id,
-            to_account_id=to_account_id,
+            from_account_id=None if credit else account_id,
+            to_account_id=account_id if credit else None,
             amount=amount,
-            description=txn_data.get("description"),
+            description=description,
             type=tx_type.value,
             timestamp=datetime.now(timezone.utc),
         )
