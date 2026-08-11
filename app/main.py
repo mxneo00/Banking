@@ -41,8 +41,16 @@ def on_startup():
 
     Base.metadata.create_all(bind=engine)
 
+'''    
+def load_seed_data():
+    """Create Postgres tables (if needed) and load seed data for local development and demos."""
+    from models.database import init_db, seed_demo_accounts
+    init_db()
+    seed_demo_accounts()
+
     from seedData import seed_demo_data
     seed_demo_data()
+'''
 
 """ 
 Error handlers: map each domain exception (and FastAPI's own request validation errors) to the HTTP status code it should produce.

@@ -1,36 +1,17 @@
-"""HTTP-level tests for app/controllers/transaction_controller.py.
+"""HTTP-level tests for app/controllers/transactionController.py.
 
-main.py can't be imported directly in this branch (it wires up
-account_controller/branch_controller modules that don't exist yet), so
-these tests mount just the transaction router into a throwaway FastAPI app
--- enough to exercise routing, request validation, and status codes.
+Mounts just the transaction router into a throwaway FastAPI app; the
+service underneath talks to the real Postgres database (see conftest.py's
+autouse fixture, which seeds ACC-123 / ACC-456 before every test). No custom
+exception handlers are needed here -- transactionService already raises
+fastapi.HTTPException directly, which FastAPI handles on its own.
 """
-
-import copy
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-import services.transactionService as transaction_service
 from controllers.transactionController import router as transaction_router
-
-
-ORIGINAL_ACCOUNTS = {
-    "ACC-123": {"id": "ACC-123", "balance": 5000.0, "is_active": True},
-    "ACC-456": {"id": "ACC-456", "balance": 250.0, "is_active": True},
-}
-
-
-@pytest.fixture(autouse=True)
-def reset_in_memory_state():
-    transaction_service._accounts_db.clear()
-    transaction_service._accounts_db.update(copy.deepcopy(ORIGINAL_ACCOUNTS))
-    transaction_service._transactions_db.clear()
-    yield
-    transaction_service._accounts_db.clear()
-    transaction_service._accounts_db.update(copy.deepcopy(ORIGINAL_ACCOUNTS))
-    transaction_service._transactions_db.clear()
 
 
 @pytest.fixture
@@ -41,32 +22,51 @@ def client():
 
 
 # ---------------------------------------------------------------------------
+# POST /api/v1/transactions
+# ---------------------------------------------------------------------------
+
+class TestCreateTransactionEndpoint:
+    def test_creates_a_record_and_returns_201(self, client):
+        response = client.post(
+            "/api/v1/transactions",
+            json={"to_account": "ACC-123", "amount": 50.0, "transaction_type": "Deposit"},
+        )
+        assert response.status_code == 201
+        body = response.json()
+        assert body["type"] == "Deposit"
+        assert body["to_account_id"] == "ACC-123"
+
+    def test_rejects_invalid_transaction_type(self, client):
+        response = client.post(
+            "/api/v1/transactions",
+            json={"to_account": "ACC-123", "amount": 50.0, "transaction_type": "Bogus"},
+        )
+        assert response.status_code == 400
+
+    def test_rejects_missing_amount(self, client):
+        response = client.post(
+            "/api/v1/transactions",
+            json={"to_account": "ACC-123", "transaction_type": "Deposit"},
+        )
+        assert response.status_code == 422  # amount is required on TransactionCreate
+
+
+# ---------------------------------------------------------------------------
 # POST /api/v1/transactions/transfer
-#
-# NOTE: every success path below calls Transaction.to_dict() to build the
-# response, which currently raises AttributeError (see test_domain.py /
-# test_transaction_service.py). TestClient re-raises server-side exceptions
-# by default, so we assert that failure explicitly rather than a 201 -- once
-# the to_dict()/self.transaction_type bug is fixed, these should be updated
-# to assert on the 201 response body instead.
 # ---------------------------------------------------------------------------
 
 class TestTransferEndpoint:
-    def test_valid_transfer_hits_the_to_dict_bug(self, client):
-        with pytest.raises(AttributeError, match="transaction_type"):
-            client.post(
-                "/api/v1/transactions/transfer",
-                json={"from_account_id": "ACC-123", "to_account_id": "ACC-456", "amount": 100.0},
-            )
-
-    def test_valid_transfer_still_moves_the_funds_before_failing_to_serialize(self, client):
-        with pytest.raises(AttributeError):
-            client.post(
-                "/api/v1/transactions/transfer",
-                json={"from_account_id": "ACC-123", "to_account_id": "ACC-456", "amount": 100.0},
-            )
-        # process_transfer() itself succeeded; only the response serialization failed.
-        assert transaction_service._accounts_db["ACC-123"]["balance"] == 4900.0
+    def test_valid_transfer_returns_201_with_serialized_transaction(self, client):
+        response = client.post(
+            "/api/v1/transactions/transfer",
+            json={"from_account_id": "ACC-123", "to_account_id": "ACC-456", "amount": 100.0},
+        )
+        assert response.status_code == 201
+        body = response.json()
+        assert body["type"] == "Transfer"
+        assert body["from_account_id"] == "ACC-123"
+        assert body["to_account_id"] == "ACC-456"
+        assert body["description"] == "Fund Transfer"
 
     def test_rejects_non_positive_amount_before_touching_the_service(self, client):
         response = client.post(
@@ -74,8 +74,6 @@ class TestTransferEndpoint:
             json={"from_account_id": "ACC-123", "to_account_id": "ACC-456", "amount": 0},
         )
         assert response.status_code == 422
-        # Balances must be untouched: request validation runs before the service.
-        assert transaction_service._accounts_db["ACC-123"]["balance"] == 5000.0
 
     def test_rejects_missing_required_field(self, client):
         response = client.post(
@@ -84,7 +82,7 @@ class TestTransferEndpoint:
         )
         assert response.status_code == 422
 
-    def test_returns_404_for_unknown_account_without_hitting_serialization(self, client):
+    def test_returns_404_for_unknown_account(self, client):
         response = client.post(
             "/api/v1/transactions/transfer",
             json={"from_account_id": "NO-SUCH-ACC", "to_account_id": "ACC-456", "amount": 100.0},
@@ -108,10 +106,15 @@ class TestGetTransactionEndpoint:
         response = client.get("/api/v1/transactions/does-not-exist")
         assert response.status_code == 404
 
-    def test_known_id_hits_the_to_dict_bug(self, client):
-        txn = transaction_service.process_transfer("ACC-123", "ACC-456", 10.0, None)
-        with pytest.raises(AttributeError, match="transaction_type"):
-            client.get(f"/api/v1/transactions/{txn.transaction_id}")
+    def test_known_id_returns_the_transaction(self, client):
+        created = client.post(
+            "/api/v1/transactions/transfer",
+            json={"from_account_id": "ACC-123", "to_account_id": "ACC-456", "amount": 10.0},
+        ).json()
+
+        response = client.get(f"/api/v1/transactions/{created['transaction_id']}")
+        assert response.status_code == 200
+        assert response.json()["transaction_id"] == created["transaction_id"]
 
 
 # ---------------------------------------------------------------------------
@@ -124,7 +127,26 @@ class TestListTransactionsEndpoint:
         assert response.status_code == 200
         assert response.json() == []
 
-    def test_non_empty_ledger_hits_the_to_dict_bug(self, client):
-        transaction_service.process_transfer("ACC-123", "ACC-456", 10.0, None)
-        with pytest.raises(AttributeError, match="transaction_type"):
-            client.get("/api/v1/transactions")
+    def test_lists_recorded_transactions(self, client):
+        client.post(
+            "/api/v1/transactions/transfer",
+            json={"from_account_id": "ACC-123", "to_account_id": "ACC-456", "amount": 10.0},
+        )
+        response = client.get("/api/v1/transactions")
+        assert response.status_code == 200
+        assert len(response.json()) == 1
+
+    def test_filters_by_type(self, client):
+        client.post(
+            "/api/v1/transactions/transfer",
+            json={"from_account_id": "ACC-123", "to_account_id": "ACC-456", "amount": 10.0},
+        )
+        client.post(
+            "/api/v1/transactions",
+            json={"to_account": "ACC-123", "amount": 20.0, "transaction_type": "Deposit"},
+        )
+
+        response = client.get("/api/v1/transactions", params={"transaction_type": "Deposit"})
+        results = response.json()
+        assert len(results) == 1
+        assert results[0]["type"] == "Deposit"
