@@ -1,6 +1,7 @@
 """ Entry point for the Bank Management REST API.
 
-Run with:      uvicorn main:app --reload
+Run with:      uvicorn main:app --reload 
+Alternative run with: python -m uvicorn main:app --reload
 Then visit:    http://127.0.0.1:8000/docs   (interactive Swagger UI, free with FastAPI)
 
 This file wires the three layers together:
@@ -15,7 +16,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from controllers.account_controller import router as account_router
 from controllers.branch_controller import router as branch_router
-from controllers.customer_controller import router as customer_router
+from controllers.customerController import router as customer_router
 from controllers.transaction_controller import router as transaction_router
 
 from models.exceptions import (

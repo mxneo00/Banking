@@ -6,7 +6,7 @@ list directly. Everything below is the only place that knows how the pieces
 of the domain fit together.
 """
 
-from exceptions import (
+from app.models.exceptions import (
     BankingError,
     DuplicateError,
     InsufficientFundsError,
