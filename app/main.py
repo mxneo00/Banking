@@ -35,22 +35,14 @@ app.include_router(transaction_router)
 
 @app.on_event("startup")
 def on_startup():
-    """Create Postgres tables, then load in-memory demo seed data."""
-    from database import Base, engine
-    import models.db_models  # noqa: F401 — register ORM models on Base.metadata
-
-    Base.metadata.create_all(bind=engine)
-
-'''    
-def load_seed_data():
-    """Create Postgres tables (if needed) and load seed data for local development and demos."""
+    """Create Postgres tables, seed demo accounts, then in-memory demo data."""
     from models.database import init_db, seed_demo_accounts
+
     init_db()
     seed_demo_accounts()
 
     from seedData import seed_demo_data
     seed_demo_data()
-'''
 
 """ 
 Error handlers: map each domain exception (and FastAPI's own request validation errors) to the HTTP status code it should produce.

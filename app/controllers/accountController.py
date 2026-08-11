@@ -1,10 +1,10 @@
-"""Routes for /api/v1/accounts (Postgres-backed)."""
+"""Routes for /api/v1/accounts (Postgres-backed via models.database)."""
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from database import get_db
-from models.schemas import AccountCreate, DepositRequest
+from models.database import get_db
+from models.schemas import AccountCreate
 from services import accountService
 
 router = APIRouter(prefix="/api/v1/accounts", tags=["accounts"])
@@ -31,13 +31,3 @@ def get_account(account_number: str, db: Session = Depends(get_db)):
     """Retrieve one account by account number."""
     account = accountService.get_account(db, account_number)
     return account.to_dict()
-
-'''
-@router.post("/{account_number}/deposit")
-def deposit(account_number: str, payload: DepositRequest, db: Session = Depends(get_db)):
-    """Deposit a positive amount into an existing account."""
-    account = accountService.deposit(db, account_number, payload.amount)
-    db.commit()
-    db.refresh(account)
-    return account.to_dict()
-'''

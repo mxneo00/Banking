@@ -22,8 +22,24 @@ from models.database import Account, SessionLocal, Transaction, init_db  # noqa:
 # transactionService talks to Postgres directly (no in-memory swap for this
 # slice) -- these two accounts back every transaction test.
 SEED_ACCOUNTS = [
-    {"account_number": "ACC-123", "balance": 5000.0, "is_active": True},
-    {"account_number": "ACC-456", "balance": 250.0, "is_active": True},
+    {
+        "account_number": "ACC-123",
+        "customer_id": "CUST-01",
+        "account_type": "checking",
+        "balance": 5000.0,
+        "overdraft_limit": 500.0,
+        "branch_code": "BR001",
+        "is_active": True,
+    },
+    {
+        "account_number": "ACC-456",
+        "customer_id": "CUST-02",
+        "account_type": "checking",
+        "balance": 250.0,
+        "overdraft_limit": 500.0,
+        "branch_code": "BR001",
+        "is_active": True,
+    },
 ]
 
 
