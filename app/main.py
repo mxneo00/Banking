@@ -35,13 +35,17 @@ app.include_router(transaction_router)
 
 @app.on_event("startup")
 def on_startup():
-    """Create Postgres tables, seed demo accounts, then in-memory demo data."""
-    from models.database import SessionLocal, init_db, seed_demo_accounts
-    from seedData import seed_demo_data
+    """Create Postgres tables and seed demo customers + accounts.
+
+    Customers must be seeded before accounts -- Account.customer_id is a
+    real foreign key onto customers.customer_id now. seedData.py's
+    in-memory repository seeding was retired: customerService/accountService
+    are fully Postgres-backed, so nothing reads that in-memory store anymore.
+    """
+    from models.database import init_db, seed_demo_accounts, seed_demo_customers
 
     init_db()
-    with SessionLocal() as db:
-        seed_demo_data(db)
+    seed_demo_customers()
     seed_demo_accounts()
 
 """ 

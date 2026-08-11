@@ -132,10 +132,24 @@ def reset_and_seed_db(confirm: bool = False):
     seed_demo_accounts()
 
 
+def seed_demo_customers():
+    """Insert the demo customers seed_demo_accounts()'s accounts belong to,
+    if the table is empty. Must run before seed_demo_accounts() -- Account
+    now has a real FK onto customers.customer_id."""
+    with SessionLocal() as session:
+        if session.query(CustomerDB).first() is not None:
+            return
+        session.add_all([
+            CustomerDB(customer_id="CUST-01", name="Aisha Khan", email="aisha@example.com", branch_id="BR001"),
+            CustomerDB(customer_id="CUST-02", name="Ben Owusu", email="ben@example.com", branch_id="BR001"),
+        ])
+        session.commit()
+
+
 def seed_demo_accounts():
     """Insert a couple of demo accounts if the table is empty, so there's
     something to transfer between right away. Idempotent -- safe to call on
-    every startup."""
+    every startup. Requires seed_demo_customers() to have run first."""
     with SessionLocal() as session:
         if session.query(Account).first() is not None:
             return

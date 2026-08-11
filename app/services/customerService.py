@@ -1,7 +1,7 @@
 """ Business logic for customer service """
 
 from sqlalchemy.orm import Session
-from models.exceptions import NotFoundError, DuplicateError
+from models.exceptions import DuplicateError, NotFoundError
 from models.database import CustomerDB
 
 def _serialize_customer(customer: CustomerDB) -> dict:
