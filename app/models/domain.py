@@ -61,8 +61,18 @@ class Customer:
         self.__account_numbers = []  # Private list to track associated account numbers
 
     def add_account(self, account):
-        """Associate a new account with this customer."""
-        number = require_text(account.account_number, "Account must have a number")
+        """Associate a new account with this customer.
+
+        Accepts either an account object (with ``account_number``) or a bare
+        account-number string — the repository passes strings.
+        """
+        if isinstance(account, str):
+            number = require_text(account, "Account must have a number")
+        else:
+            number = require_text(
+                getattr(account, "account_number", None),
+                "Account must have a number",
+            )
         if number not in self.__account_numbers:
             self.__account_numbers.append(number)
 
@@ -317,64 +327,3 @@ class CheckingAccount(Account):
 
     def describe(self):
         return f"{super().describe()} | overdraft limit {self.overdraft_limit}"
-
-
-class Branch:
-    """A branch office with one manager, a staff list, and its accounts.
-
-    Assumption for this MVP: the manager is NOT part of the staff list, and
-    every branch has exactly one manager. So the staff-to-manager ratio is
-    just the staff count divided by 1.
-    """
-
-    def __init__(self, branch_code, location, manager_id):
-        self.branch_code = require_text(branch_code, "Branch code")
-        self.location = require_text(location, "Branch location")
-        self.manager_id = require_text(manager_id, "Manager ID")
-        self._staff_ids = []
-        self._account_numbers = []
-
-    def get_staff_ids(self):
-        return list(self._staff_ids)
-
-    def get_account_numbers(self):
-        return list(self._account_numbers)
-
-    def get_staff_count(self):
-        """Number of staff, excluding the manager."""
-        return len(self._staff_ids)
-
-    def add_staff(self, staff_id):
-        """Add a staff member; duplicates and the manager are rejected."""
-        identifier = require_text(staff_id, "Staff ID")
-        if identifier == self.manager_id:
-            raise ValidationError(
-                f"'{identifier}' is the manager of branch {self.branch_code} "
-                "and is not counted as staff."
-            )
-        if identifier in self._staff_ids:
-            raise DuplicateError(
-                f"Staff '{identifier}' is already assigned to branch {self.branch_code}."
-            )
-        self._staff_ids.append(identifier)
-
-    def add_account(self, account_number):
-        """Associate an account number with this branch, ignoring repeats."""
-        number = require_text(account_number, "Account number")
-        if number not in self._account_numbers:
-            self._account_numbers.append(number)
-
-    def staff_to_manager_ratio(self):
-        """Staff per manager. One manager per branch, so this is the staff count."""
-        managers = 1
-        return len(self._staff_ids) / managers
-
-    def describe(self):
-        return (
-            f"{self.branch_code} | {self.location} | manager {self.manager_id} | "
-            f"staff {self.get_staff_count()} | accounts {len(self._account_numbers)} | "
-            f"ratio {self.staff_to_manager_ratio():.1f}"
-        )
-
-    def __str__(self):
-        return self.describe()
