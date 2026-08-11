@@ -1,7 +1,7 @@
 """ Business logic for customer service """
 
 from sqlalchemy.orm import Session
-from models.exceptions import NotFoundError
+from models.exceptions import NotFoundError, DuplicateError
 from models.database import CustomerDB
 
 def _serialize_customer(customer: CustomerDB) -> dict:
@@ -26,12 +26,12 @@ def _get_customer_row(db: Session, customer_id: str) -> CustomerDB:
 def create_customer(db: Session, customer_id, name, email, branch_id):
     """Create a new customer and persist it to the database."""
     if db.get(CustomerDB, customer_id):
-        raise ValueError(f"Customer '{customer_id}' already exists.")
+        raise DuplicateError(f"Customer '{customer_id}' already exists.")
     customer = CustomerDB(customer_id=customer_id, name=name, email=email, branch_id=branch_id)
     db.add(customer)
     db.commit()
     db.refresh(customer)
-    return customer
+    return _serialize_customer(customer)
 
 def list_customers(db: Session, branch_id=None, active_only=None):
     """Return customers, optionally filtered by branch and/or active status."""
@@ -40,7 +40,7 @@ def list_customers(db: Session, branch_id=None, active_only=None):
         query = query.filter(CustomerDB.branch_id == branch_id)
     if active_only is not None:
         query = query.filter(CustomerDB.is_active == active_only)
-    return query.all()
+    return [_serialize_customer(c) for c in query.all()]
 
 def get_customer(db: Session, customer_id):
     """Fetch a single customer by ID; raises 404 if not found."""

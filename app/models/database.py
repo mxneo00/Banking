@@ -55,6 +55,8 @@ class Account(Base):
     branch_code = Column(String(32), nullable=False, default="BR001")
     is_active = Column(Boolean, nullable=False, default=True)
 
+    customer = relationship("CustomerDB", back_populates="accounts")
+
     def to_dict(self) -> dict:
         data = {
             "account_number": self.account_number,
@@ -99,10 +101,10 @@ class CustomerDB(Base):
     branch_id = Column(String, nullable=False)
     is_active = Column(Boolean, nullable=False, default=True)
 
-    # Relationship to accounts: one customer can have many accounts. The
-    # `backref` allows us to access the customer from an account via `account.customer`.
-    # This is useful for queries that need to join customers and accounts.
-    accounts = relationship("Account", backref="customer")
+    # The FK lives on Account.customer_id; this is the "list of this
+    # customer's accounts" the relational way -- no redundant array of
+    # account ids stored on the customer row, just query/traverse the FK.
+    accounts = relationship("Account", back_populates="customer")
 
 
 def init_db():
