@@ -13,36 +13,33 @@ router = APIRouter(prefix="/api/v1/customers", tags=["customers"])
 @router.post("", status_code=201)
 def create_customer(payload: CustomerCreate, db=Depends(get_db)):
     """Create a new customer and persist it to the database."""
-    customer = customerService.create_customer(
-        db,
-        customer_id=payload.customer_id,
-        name=payload.name,
-        email=payload.email,
-        branch_id=payload.branch_id,
+    return customerService.create_customer(
+        db, 
+        customer_id=payload.customer_id, 
+        name=payload.name, 
+        email=payload.email, 
+        branch_id=payload.branch_id
     )
-    return customer.to_dict()
 
 # GET /api/v1/customers - List customers
 @router.get("")
 def list_customers(branch_id: Optional[str] = None, active_only: Optional[bool] = None, db=Depends(get_db)):
     """Return all customers, optionally filtered by branch or active status."""
-    customers = customerService.list_customers(db, branch_id=branch_id, active_only=active_only)
-    return [c.to_dict() for c in customers]
+    return customerService.list_customers(db, branch_id=branch_id, active_only=active_only)
 
 # GET /api/v1/customers/{customer_id} - Get a specific customer
 @router.get("/{customer_id}")
 def get_customer(customer_id: str, db=Depends(get_db)):
     """Fetch a single customer by ID; raises 404 if not found."""
-    return customerService.get_customer(db, customer_id).to_dict()
+    return customerService.get_customer(db, customer_id)
 
 # PUT /api/v1/customers/{customer_id} - Update a customer
 @router.put("/{customer_id}")
 def update_customer(customer_id: str, payload: CustomerUpdate, db=Depends(get_db)):
     """Update mutable fields (name, email) on an existing customer."""
-    customer = customerService.update_customer(
+    return customerService.update_customer(
         db, customer_id, name=payload.name, email=payload.email
     )
-    return customer.to_dict()
 
 # DELETE /api/v1/customers/{customer_id} - Deactivate a customer
 @router.delete("/{customer_id}")
