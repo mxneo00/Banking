@@ -1,6 +1,6 @@
 from typing import List, Optional
 from fastapi import HTTPException, status
-from models.transaction import Transaction
+from models.domain import Transaction
 
 # Mock data sooo we delete later
 _transactions_db = {}
