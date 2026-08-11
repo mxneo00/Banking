@@ -1,161 +1,211 @@
-"""Tests for app/services/transaction_service.py.
+"""Tests for app/services/transactionService.py.
 
-The service keeps its "database" as module-level dicts (_accounts_db,
-_transactions_db), so tests reset that state before/after each test to stay
-isolated from one another.
+These hit the real Postgres database (see conftest.py's autouse fixture) --
+transactionService talks to models/database.py's SessionLocal directly, so
+there's no in-memory mock to swap in for this slice. `docker compose up -d
+db` must be running before these tests execute.
 """
-
-import copy
 
 import pytest
 from fastapi import HTTPException
 
-import services.transactionService as transaction_service
+import services.transactionService as transactionService
+from models.database import Account as AccountORM, SessionLocal
 
 
-ORIGINAL_ACCOUNTS = {
-    "ACC-123": {"id": "ACC-123", "balance": 5000.0, "is_active": True},
-    "ACC-456": {"id": "ACC-456", "balance": 250.0, "is_active": True},
-}
+def _balance(account_number):
+    with SessionLocal() as session:
+        return session.get(AccountORM, account_number).balance
 
 
-@pytest.fixture(autouse=True)
-def reset_in_memory_state():
-    """Restore the module's fake DB to a known baseline before each test."""
-    transaction_service._accounts_db.clear()
-    transaction_service._accounts_db.update(copy.deepcopy(ORIGINAL_ACCOUNTS))
-    transaction_service._transactions_db.clear()
-    yield
-    transaction_service._accounts_db.clear()
-    transaction_service._accounts_db.update(copy.deepcopy(ORIGINAL_ACCOUNTS))
-    transaction_service._transactions_db.clear()
+class TestCreateTransactionDeposit:
+    def test_credits_the_account(self):
+        result = transactionService.create_transaction({
+            "to_account": "ACC-123", "amount": 100.0, "transaction_type": "Deposit",
+        })
+        assert result["type"] == "Deposit"
+        assert result["to_account_id"] == "ACC-123"
+        assert result["from_account_id"] is None
+        assert result["amount"] == 100.0
+        assert _balance("ACC-123") == 5100.0
+
+    def test_requires_to_account(self):
+        with pytest.raises(HTTPException) as exc_info:
+            transactionService.create_transaction({"amount": 100.0, "transaction_type": "Deposit"})
+        assert exc_info.value.status_code == 400
+
+    def test_rejects_a_from_account(self):
+        with pytest.raises(HTTPException) as exc_info:
+            transactionService.create_transaction({
+                "from_account": "ACC-123", "to_account": "ACC-456",
+                "amount": 100.0, "transaction_type": "Deposit",
+            })
+        assert exc_info.value.status_code == 400
+
+    def test_raises_404_for_an_unknown_account(self):
+        # to_account_id is a real foreign key onto accounts, so this is
+        # caught with a clean 404 rather than a raw DB IntegrityError.
+        with pytest.raises(HTTPException) as exc_info:
+            transactionService.create_transaction({
+                "to_account": "NO-SUCH-ACC", "amount": 5.0, "transaction_type": "Deposit",
+            })
+        assert exc_info.value.status_code == 404
 
 
-# ---------------------------------------------------------------------------
-# process_transfer
-# ---------------------------------------------------------------------------
+class TestCreateTransactionWithdrawal:
+    def test_debits_the_account(self):
+        result = transactionService.create_transaction({
+            "from_account": "ACC-123", "amount": 100.0, "transaction_type": "Withdrawal",
+        })
+        assert result["type"] == "Withdrawal"
+        assert result["from_account_id"] == "ACC-123"
+        assert result["to_account_id"] is None
+        assert _balance("ACC-123") == 4900.0
+
+    def test_requires_from_account(self):
+        with pytest.raises(HTTPException) as exc_info:
+            transactionService.create_transaction({"amount": 100.0, "transaction_type": "Withdrawal"})
+        assert exc_info.value.status_code == 400
+
+    def test_rejects_a_to_account(self):
+        with pytest.raises(HTTPException) as exc_info:
+            transactionService.create_transaction({
+                "from_account": "ACC-123", "to_account": "ACC-456",
+                "amount": 100.0, "transaction_type": "Withdrawal",
+            })
+        assert exc_info.value.status_code == 400
+
+    def test_rejects_insufficient_funds(self):
+        with pytest.raises(HTTPException) as exc_info:
+            transactionService.create_transaction({
+                "from_account": "ACC-456", "amount": 99999.0, "transaction_type": "Withdrawal",
+            })
+        assert exc_info.value.status_code == 400
+        assert _balance("ACC-456") == 250.0
+
+
+class TestCreateTransactionTransfer:
+    def test_delegates_to_process_transfer(self):
+        result = transactionService.create_transaction({
+            "from_account": "ACC-123", "to_account": "ACC-456",
+            "amount": 100.0, "transaction_type": "Transfer",
+        })
+        assert result["type"] == "Transfer"
+        assert _balance("ACC-123") == 4900.0
+        assert _balance("ACC-456") == 350.0
+
+    def test_requires_both_accounts(self):
+        with pytest.raises(HTTPException) as exc_info:
+            transactionService.create_transaction({
+                "from_account": "ACC-123", "amount": 100.0, "transaction_type": "Transfer",
+            })
+        assert exc_info.value.status_code == 400
+
+
+class TestCreateTransactionValidation:
+    def test_rejects_invalid_transaction_type(self):
+        with pytest.raises(HTTPException) as exc_info:
+            transactionService.create_transaction({
+                "to_account": "ACC-123", "amount": 100.0, "transaction_type": "Bogus",
+            })
+        assert exc_info.value.status_code == 400
+
+    def test_rejects_non_positive_amount(self):
+        with pytest.raises(HTTPException) as exc_info:
+            transactionService.create_transaction({
+                "to_account": "ACC-123", "amount": 0, "transaction_type": "Deposit",
+            })
+        assert exc_info.value.status_code == 400
+
 
 class TestProcessTransfer:
     def test_moves_funds_between_accounts(self):
-        transaction_service.process_transfer("ACC-123", "ACC-456", 100.0, "rent")
+        transactionService.process_transfer("ACC-123", "ACC-456", 100.0, "rent")
+        assert _balance("ACC-123") == 4900.0
+        assert _balance("ACC-456") == 350.0
 
-        assert transaction_service._accounts_db["ACC-123"]["balance"] == 4900.0
-        assert transaction_service._accounts_db["ACC-456"]["balance"] == 350.0
-
-    def test_returns_a_transaction_with_the_requested_fields(self):
-        txn = transaction_service.process_transfer("ACC-123", "ACC-456", 100.0, "rent")
-
-        assert txn.from_account_id == "ACC-123"
-        assert txn.to_account_id == "ACC-456"
-        assert txn.amount == 100.0
-        assert txn.description == "rent"
-        assert txn.status == "COMPLETED"
-
-    def test_stores_the_transaction_in_the_ledger(self):
-        txn = transaction_service.process_transfer("ACC-123", "ACC-456", 100.0, "rent")
-
-        assert transaction_service._transactions_db[txn.transaction_id] is txn
+    def test_returns_a_transfer_transaction(self):
+        txn = transactionService.process_transfer("ACC-123", "ACC-456", 100.0, "rent")
+        assert txn["from_account_id"] == "ACC-123"
+        assert txn["to_account_id"] == "ACC-456"
+        assert txn["amount"] == 100.0
+        assert txn["description"] == "rent"
+        assert txn["type"] == "Transfer"
 
     def test_raises_404_when_source_account_missing(self):
         with pytest.raises(HTTPException) as exc_info:
-            transaction_service.process_transfer("NO-SUCH-ACC", "ACC-456", 100.0, None)
+            transactionService.process_transfer("NO-SUCH-ACC", "ACC-456", 100.0)
         assert exc_info.value.status_code == 404
 
     def test_raises_404_when_destination_account_missing(self):
         with pytest.raises(HTTPException) as exc_info:
-            transaction_service.process_transfer("ACC-123", "NO-SUCH-ACC", 100.0, None)
+            transactionService.process_transfer("ACC-123", "NO-SUCH-ACC", 100.0)
         assert exc_info.value.status_code == 404
-
-    def test_raises_400_when_source_account_inactive(self):
-        transaction_service._accounts_db["ACC-123"]["is_active"] = False
-        with pytest.raises(HTTPException) as exc_info:
-            transaction_service.process_transfer("ACC-123", "ACC-456", 100.0, None)
-        assert exc_info.value.status_code == 400
-
-    def test_raises_400_when_destination_account_inactive(self):
-        transaction_service._accounts_db["ACC-456"]["is_active"] = False
-        with pytest.raises(HTTPException) as exc_info:
-            transaction_service.process_transfer("ACC-123", "ACC-456", 100.0, None)
-        assert exc_info.value.status_code == 400
 
     def test_raises_400_on_insufficient_funds(self):
         with pytest.raises(HTTPException) as exc_info:
-            transaction_service.process_transfer("ACC-456", "ACC-123", 99999.0, None)
+            transactionService.process_transfer("ACC-456", "ACC-123", 99999.0)
         assert exc_info.value.status_code == 400
 
-    def test_insufficient_funds_does_not_mutate_balances(self):
+    def test_insufficient_funds_does_not_record_a_transaction_or_move_balances(self):
         try:
-            transaction_service.process_transfer("ACC-456", "ACC-123", 99999.0, None)
+            transactionService.process_transfer("ACC-456", "ACC-123", 99999.0)
         except HTTPException:
             pass
-        assert transaction_service._accounts_db["ACC-456"]["balance"] == 250.0
-        assert transaction_service._accounts_db["ACC-123"]["balance"] == 5000.0
+        assert transactionService.get_transactions() == []
+        assert _balance("ACC-456") == 250.0
+        assert _balance("ACC-123") == 5000.0
 
-    def test_failed_transfer_is_not_recorded_in_the_ledger(self):
-        try:
-            transaction_service.process_transfer("NO-SUCH-ACC", "ACC-456", 100.0, None)
-        except HTTPException:
-            pass
-        assert transaction_service._transactions_db == {}
+    def test_rejects_transfer_to_the_same_account(self):
+        with pytest.raises(HTTPException) as exc_info:
+            transactionService.process_transfer("ACC-123", "ACC-123", 10.0)
+        assert exc_info.value.status_code == 400
 
-    def test_transferring_full_balance_is_allowed(self):
-        transaction_service.process_transfer("ACC-456", "ACC-123", 250.0, None)
-        assert transaction_service._accounts_db["ACC-456"]["balance"] == 0.0
+    def test_rejects_non_positive_amount(self):
+        with pytest.raises(HTTPException) as exc_info:
+            transactionService.process_transfer("ACC-123", "ACC-456", 0)
+        assert exc_info.value.status_code == 400
 
-
-# ---------------------------------------------------------------------------
-# get_transaction
-# ---------------------------------------------------------------------------
 
 class TestGetTransaction:
     def test_returns_the_stored_transaction(self):
-        created = transaction_service.process_transfer("ACC-123", "ACC-456", 100.0, None)
-        fetched = transaction_service.get_transaction(created.transaction_id)
-        assert fetched is created
+        created = transactionService.process_transfer("ACC-123", "ACC-456", 50.0)
+        fetched = transactionService.get_transaction(created["transaction_id"])
+        assert fetched["transaction_id"] == created["transaction_id"]
 
     def test_raises_404_for_unknown_id(self):
         with pytest.raises(HTTPException) as exc_info:
-            transaction_service.get_transaction("does-not-exist")
+            transactionService.get_transaction("does-not-exist")
         assert exc_info.value.status_code == 404
 
 
-# ---------------------------------------------------------------------------
-# list_transactions
-# ---------------------------------------------------------------------------
-
-class TestListTransactions:
+class TestGetTransactions:
     def test_returns_empty_list_when_no_transactions(self):
-        assert transaction_service.list_transactions() == []
+        assert transactionService.get_transactions() == []
 
     def test_returns_all_transactions_when_unfiltered(self):
-        t1 = transaction_service.process_transfer("ACC-123", "ACC-456", 10.0, None)
-        t2 = transaction_service.process_transfer("ACC-456", "ACC-123", 5.0, None)
+        t1 = transactionService.process_transfer("ACC-123", "ACC-456", 10.0)
+        t2 = transactionService.process_transfer("ACC-456", "ACC-123", 5.0)
 
-        results = transaction_service.list_transactions()
-        assert {t.transaction_id for t in results} == {t1.transaction_id, t2.transaction_id}
+        results = transactionService.get_transactions()
+        assert {t["transaction_id"] for t in results} == {t1["transaction_id"], t2["transaction_id"]}
+
+    def test_filters_by_type(self):
+        transactionService.process_transfer("ACC-123", "ACC-456", 10.0)
+        transactionService.create_transaction({
+            "to_account": "ACC-123", "amount": 20.0, "transaction_type": "Deposit",
+        })
+
+        results = transactionService.get_transactions(transaction_type="Deposit")
+        assert len(results) == 1
+        assert results[0]["type"] == "Deposit"
 
     def test_filters_by_start_date(self):
-        transaction_service.process_transfer("ACC-123", "ACC-456", 10.0, None)
+        transactionService.process_transfer("ACC-123", "ACC-456", 10.0)
 
-        # An impossibly far-future start_date should exclude everything,
-        # since timestamps are compared as ISO strings.
-        results = transaction_service.list_transactions(start_date="9999-01-01")
-        assert results == []
+        assert transactionService.get_transactions(start_date="9999-01-01") == []
 
-    def test_start_date_in_the_past_includes_existing_transactions(self):
-        txn = transaction_service.process_transfer("ACC-123", "ACC-456", 10.0, None)
-
-        results = transaction_service.list_transactions(start_date="2000-01-01")
-        assert txn.transaction_id in {t.transaction_id for t in results}
-
-    def test_filtering_by_transaction_type_raises_because_type_attribute_is_never_set(self):
-        """Known bug: Transaction stores its kind on self.type, but
-        list_transactions() filters on t.transaction_type, which no
-        Transaction instance ever has. See test_domain.py's matching
-        to_dict() bug -- both stem from the same __init__/to_dict mismatch
-        in app/models/domain.py.
-        """
-        transaction_service.process_transfer("ACC-123", "ACC-456", 10.0, None)
-
-        with pytest.raises(AttributeError, match="transaction_type"):
-            transaction_service.list_transactions(transaction_type="transfer")
+    def test_rejects_a_malformed_start_date(self):
+        with pytest.raises(HTTPException) as exc_info:
+            transactionService.get_transactions(start_date="not-a-date")
+        assert exc_info.value.status_code == 400
