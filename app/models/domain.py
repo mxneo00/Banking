@@ -1,6 +1,12 @@
 import uuid
+from enum import Enum
 from datetime import datetime, timezone
 from typing import Optional
+
+class TransactionType(Enum):
+    DEPOSIT = "Deposit"
+    WITHDRAWAL = "Withdrawal"
+    TRANSFER = "Transfer"
 
 class Transaction:
     """Domain model representing a financial transaction."""
