@@ -1,24 +1,71 @@
-from fastapi import FastAPI
+""" Entry point for the Bank Management REST API.
 
-#from controllers.customer_controller import router as customer_router
-#from controllers.account_controller import router as account_router
+Run with:      uvicorn main:app --reload 
+Alternative run with: python -m uvicorn main:app --reload
+Then visit:    http://127.0.0.1:8000/docs   (interactive Swagger UI, free with FastAPI)
+
+This file wires the three layers together:
+    Controllers (routing/HTTP)  -->  Services (business logic)  -->  Repository (storage)
+and is the one place that knows how to turn a domain exception (or a failed request validation) into an HTTP status code, so no individual route has to think about that itself.
+"""
+
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from controllers.account_controller import router as account_router
+from controllers.branch_controller import router as branch_router
+from controllers.customerController import router as customer_router
 from controllers.transaction_controller import router as transaction_router
 
-app = FastAPI(title="Bank Management System API")
+from models.exceptions import (
+    BankingError,
+    DuplicateError,
+    InsufficientFundsError,
+    NotFoundError,
+    ValidationError,
+)
 
-# Each controller module owns its own routes; main.py just registers
-# them under the versioned prefix + tag from the roadmap spec.
-# app.include_router(customer_router, prefix="/api/v1/customers", tags=["Customers"])
-# app.include_router(account_router, prefix="/api/v1/accounts", tags=["Accounts"])
-app.include_router(transaction_router, prefix="/api/v1/transactions", tags=["Transactions"])
+app = FastAPI(title="Bank Management API")
 
+app.include_router(branch_router)
+app.include_router(customer_router)
+app.include_router(account_router)
+app.include_router(transaction_router)
 
-@app.get("/", tags=["Health"])
-def health_check():
-    """Simple liveness check to confirm the API is up."""
-    return {"status": "ok", "service": "Bank Management System API"}
+""" 
+Error handlers: map each domain exception (and FastAPI's own request validation errors) to the HTTP status code it should produce.
+"""
 
+@app.exception_handler(NotFoundError)
+async def handle_not_found(request: Request, exc: NotFoundError):
+    return JSONResponse(status_code=404, content={"error": "NotFound", "message": str(exc)})
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+@app.exception_handler(DuplicateError)
+async def handle_duplicate(request: Request, exc: DuplicateError):
+    return JSONResponse(status_code=400, content={"error": "Duplicate", "message": str(exc)})
+
+@app.exception_handler(InsufficientFundsError)
+async def handle_insufficient_funds(request: Request, exc: InsufficientFundsError):
+    return JSONResponse(status_code=400, content={"error": "InsufficientFunds", "message": str(exc)})
+
+@app.exception_handler(ValidationError)
+async def handle_validation(request: Request, exc: ValidationError):
+    return JSONResponse(status_code=400, content={"error": "Validation", "message": str(exc)})
+
+@app.exception_handler(BankingError)
+async def handle_banking_error(request: Request, exc: BankingError):
+    return JSONResponse(status_code=400, content={"error": "BankingError", "message": str(exc)})
+
+@app.exception_handler(RequestValidationError)
+async def handle_request_validation(request: Request, exc: RequestValidationError):
+    return JSONResponse(status_code=422, content={"error": "RequestValidationError", "message": str(exc)})
+
+@app.exception_handler(StarletteHTTPException)
+async def handle_http_exception(request: Request, exc: StarletteHTTPException):
+    return JSONResponse(status_code=exc.status_code, content={"error": "HTTPException", "message": str(exc.detail)})
+
+@app.exception_handler(Exception)
+async def handle_generic_exception(request: Request, exc: Exception):
+    return JSONResponse(status_code=500, content={"error": "InternalServerError", "message": str(exc)})
