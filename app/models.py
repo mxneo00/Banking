@@ -18,7 +18,7 @@ error, but that's a more advanced topic for later.)
 import re
 from datetime import datetime
 
-from exceptions import DuplicateError, InsufficientFundsError, ValidationError
+from app.models.exceptions import DuplicateError, InsufficientFundsError, ValidationError
 
 _EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
