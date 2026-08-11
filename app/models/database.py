@@ -1,11 +1,8 @@
-"""SQLAlchemy setup + ORM models backing the transaction endpoints.
+"""SQLAlchemy setup + ORM models for Postgres persistence.
 
-This is a first, narrow slice of real Postgres persistence: just enough to
-back deposits/withdrawals/transfers with a real database, matching the
-`from models.database import SessionLocal, Account, Transaction` shape
-already used elsewhere. Customers, branches, and account *opening* still go
-through the in-memory repository (models/repository.py) for now -- moving
-those onto Postgres too is a follow-up, not part of this slice.
+Accounts and transactions live here. Account opening/lookup go through
+accountService; deposits/withdrawals/transfers go through transactionService.
+Customers and branches may still use the in-memory repository for now.
 
 Copy .env.example to .env in the project root (and adjust credentials if
 yours differ) before running anything that imports this module --
@@ -35,18 +32,43 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False
 Base = declarative_base()
 
 
+def get_db():
+    """FastAPI dependency: one SQLAlchemy session per request."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
 class Account(Base):
-    """A minimal, Postgres-backed account -- just enough for transactions to
-    move real money between real rows. `account_number` matches the ids the
-    rest of the app already uses (e.g. "AC1001", or "ACC-123" for manual
-    testing/demo data).
-    """
+    """Postgres-backed bank account used by account and transaction endpoints."""
 
     __tablename__ = "accounts"
 
-    account_number = Column(String, primary_key=True)
+    account_number = Column(String(32), primary_key=True)
+    customer_id = Column(String(64), nullable=False)
+    account_type = Column(String(16), nullable=False)  # "savings" | "checking"
     balance = Column(Float, nullable=False, default=0.0)
+    minimum_balance = Column(Float, nullable=True)
+    overdraft_limit = Column(Float, nullable=True)
+    branch_code = Column(String(32), nullable=False, default="BR001")
     is_active = Column(Boolean, nullable=False, default=True)
+
+    def to_dict(self) -> dict:
+        data = {
+            "account_number": self.account_number,
+            "customer_id": self.customer_id,
+            "account_type": self.account_type,
+            "balance": self.balance,
+            "branch_code": self.branch_code,
+            "is_active": self.is_active,
+        }
+        if self.minimum_balance is not None:
+            data["minimum_balance"] = self.minimum_balance
+        if self.overdraft_limit is not None:
+            data["overdraft_limit"] = self.overdraft_limit
+        return data
 
 
 class Transaction(Base):
@@ -95,7 +117,23 @@ def seed_demo_accounts():
         if session.query(Account).first() is not None:
             return
         session.add_all([
-            Account(account_number="ACC-123", balance=5000.0, is_active=True),
-            Account(account_number="ACC-456", balance=250.0, is_active=True),
+            Account(
+                account_number="ACC-123",
+                customer_id="CUST-01",
+                account_type="checking",
+                balance=5000.0,
+                overdraft_limit=500.0,
+                branch_code="BR001",
+                is_active=True,
+            ),
+            Account(
+                account_number="ACC-456",
+                customer_id="CUST-02",
+                account_type="checking",
+                balance=250.0,
+                overdraft_limit=500.0,
+                branch_code="BR001",
+                is_active=True,
+            ),
         ])
         session.commit()
