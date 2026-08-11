@@ -3,7 +3,7 @@
 from typing import Optional
 from fastapi import APIRouter, status, Query
 from models.schemas import TransferRequest
-from app.services import transactionService
+from services import transactionService
 
 router = APIRouter(prefix="/api/v1/transactions", tags=["transactions"])
 

@@ -12,8 +12,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-import services.transaction_service as transaction_service
-from controllers.transaction_controller import router as transaction_router
+import services.transactionService as transaction_service
+from controllers.transactionController import router as transaction_router
 
 
 ORIGINAL_ACCOUNTS = {

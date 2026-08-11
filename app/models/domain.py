@@ -3,7 +3,7 @@ from enum import Enum
 from datetime import datetime, timezone
 from typing import Optional
 
-from models.exceptions import InsufficientFundsError, ValidationError
+from models.exceptions import DuplicateError, InsufficientFundsError, ValidationError
 
 def require_text(value: Optional[str], error_message: str) -> str:
     """Utility function to ensure a string is not None or empty."""

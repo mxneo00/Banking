@@ -1,7 +1,7 @@
 """Shared pytest configuration for the app test suite.
 
 The app's own modules use bare imports (``from models.domain import ...``,
-``from services import transaction_service``) that only resolve when the
+``from services import transactionService``) that only resolve when the
 ``app/`` directory itself is on ``sys.path`` -- i.e. when running
 ``uvicorn main:app`` from inside ``app/``. Tests live one level deeper
 (``app/__tests__/``), so we add ``app/`` to ``sys.path`` here before any
