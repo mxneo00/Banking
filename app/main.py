@@ -34,8 +34,13 @@ app.include_router(account_router)
 app.include_router(transaction_router)
 
 @app.on_event("startup")
-def load_seed_data():
-    """Load seed data for local development and demos."""
+def on_startup():
+    """Create Postgres tables, then load in-memory demo seed data."""
+    from database import Base, engine
+    import models.db_models  # noqa: F401 — register ORM models on Base.metadata
+
+    Base.metadata.create_all(bind=engine)
+
     from seedData import seed_demo_data
     seed_demo_data()
 
