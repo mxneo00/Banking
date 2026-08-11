@@ -2,6 +2,16 @@ from typing import Optional
 from datetime import datetime
 from pydantic import BaseModel, Field, model_validator
 
+class CustomerCreate(BaseModel):
+    customer_id: str
+    name: str
+    email: str
+    branch_id: str
+
+class CustomerUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[str] = None
+
 class DepositRequest(BaseModel):
     amount: float = Field(..., gt=0, description="Deposit amount must be positive")
 

@@ -34,6 +34,12 @@ app.include_router(customer_router)
 app.include_router(account_router)
 app.include_router(transaction_router)
 
+@app.on_event("startup")
+def load_seed_data():
+    """Load seed data for local development and demos."""
+    from seedData import seed_demo_data
+    seed_demo_data()
+
 """ 
 Error handlers: map each domain exception (and FastAPI's own request validation errors) to the HTTP status code it should produce.
 """
