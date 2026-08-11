@@ -3,7 +3,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from models.database import Account
+from models.database import Account, CustomerDB
 from models.exceptions import NotFoundError, ValidationError
 
 
@@ -39,6 +39,16 @@ def open_account(
     if account_type == "checking" and minimum_balance is not None:
         raise ValidationError("minimum_balance does not apply to a checking account.")
 
+    # Cross-check the relationship before creating the row: the account's
+    # customer_id is a real FK, but checking here first gives a clean 404/400
+    # instead of a raw IntegrityError, and lets us derive branch_code from
+    # the customer the same way the original in-memory version did.
+    customer = db.get(CustomerDB, customer_id.strip())
+    if customer is None:
+        raise NotFoundError(f"Customer '{customer_id}' does not exist.")
+    if not customer.is_active:
+        raise ValidationError(f"Customer '{customer_id}' is deactivated and cannot open new accounts.")
+
     min_bal = None
     od_limit = None
     if account_type == "savings":
@@ -48,12 +58,12 @@ def open_account(
 
     account = Account(
         account_number=_next_account_number(db),
-        customer_id=customer_id.strip(),
+        customer_id=customer.customer_id,
         account_type=account_type,
         balance=round(float(opening_balance), 2),
         minimum_balance=min_bal,
         overdraft_limit=od_limit,
-        branch_code="BR001",
+        branch_code=customer.branch_id,
         is_active=True,
     )
     db.add(account)

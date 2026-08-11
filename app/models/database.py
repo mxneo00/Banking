@@ -14,7 +14,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, String, create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
 # This file: app/models/database.py -> parents[2] is the project root.
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
@@ -47,13 +47,15 @@ class Account(Base):
     __tablename__ = "accounts"
 
     account_number = Column(String(32), primary_key=True)
-    customer_id = Column(String(64), nullable=False)
+    customer_id = Column(String(64), ForeignKey("customers.customer_id"), nullable=False)
     account_type = Column(String(16), nullable=False)  # "savings" | "checking"
     balance = Column(Float, nullable=False, default=0.0)
     minimum_balance = Column(Float, nullable=True)
     overdraft_limit = Column(Float, nullable=True)
     branch_code = Column(String(32), nullable=False, default="BR001")
     is_active = Column(Boolean, nullable=False, default=True)
+
+    customer = relationship("CustomerDB", back_populates="accounts")
 
     def to_dict(self) -> dict:
         data = {
@@ -99,6 +101,11 @@ class CustomerDB(Base):
     branch_id = Column(String, nullable=False)
     is_active = Column(Boolean, nullable=False, default=True)
 
+    # The FK lives on Account.customer_id; this is the "list of this
+    # customer's accounts" the relational way -- no redundant array of
+    # account ids stored on the customer row, just query/traverse the FK.
+    accounts = relationship("Account", back_populates="customer")
+
 
 def init_db():
     """Create tables that don't exist yet.
@@ -115,10 +122,24 @@ def reset_db():
     Base.metadata.create_all(bind=engine)
 
 
+def seed_demo_customers():
+    """Insert the demo customers seed_demo_accounts()'s accounts belong to,
+    if the table is empty. Must run before seed_demo_accounts() -- Account
+    now has a real FK onto customers.customer_id."""
+    with SessionLocal() as session:
+        if session.query(CustomerDB).first() is not None:
+            return
+        session.add_all([
+            CustomerDB(customer_id="CUST-01", name="Aisha Khan", email="aisha@example.com", branch_id="BR001"),
+            CustomerDB(customer_id="CUST-02", name="Ben Owusu", email="ben@example.com", branch_id="BR001"),
+        ])
+        session.commit()
+
+
 def seed_demo_accounts():
     """Insert a couple of demo accounts if the table is empty, so there's
     something to transfer between right away. Idempotent -- safe to call on
-    every startup."""
+    every startup. Requires seed_demo_customers() to have run first."""
     with SessionLocal() as session:
         if session.query(Account).first() is not None:
             return
