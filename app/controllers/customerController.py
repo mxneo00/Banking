@@ -48,5 +48,5 @@ def deactivate_customer(customer_id: str, db=Depends(get_db)):
     customer = customerService.deactivate_customer(db, customer_id)
     return {
         "message": f"Customer '{customer_id}' has been deactivated.",
-        "customer": customer.to_dict(),
+        "customer": customer,
     }

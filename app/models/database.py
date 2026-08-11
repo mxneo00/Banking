@@ -14,7 +14,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, String, create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
 # This file: app/models/database.py -> parents[2] is the project root.
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
@@ -47,7 +47,7 @@ class Account(Base):
     __tablename__ = "accounts"
 
     account_number = Column(String(32), primary_key=True)
-    customer_id = Column(String(64), nullable=False)
+    customer_id = Column(String(64), ForeignKey("customers.customer_id"), nullable=False)
     account_type = Column(String(16), nullable=False)  # "savings" | "checking"
     balance = Column(Float, nullable=False, default=0.0)
     minimum_balance = Column(Float, nullable=True)
@@ -98,6 +98,11 @@ class CustomerDB(Base):
     email = Column(String, nullable=False)
     branch_id = Column(String, nullable=False)
     is_active = Column(Boolean, nullable=False, default=True)
+
+    # Relationship to accounts: one customer can have many accounts. The
+    # `backref` allows us to access the customer from an account via `account.customer`.
+    # This is useful for queries that need to join customers and accounts.
+    accounts = relationship("Account", backref="customer")
 
 
 def init_db():
