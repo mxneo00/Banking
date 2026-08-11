@@ -109,6 +109,12 @@ def init_db():
     Base.metadata.create_all(bind=engine)
 
 
+def reset_db():
+    """Drop all tables and recreate them. Dev/reset use only."""
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+
+
 def seed_demo_accounts():
     """Insert a couple of demo accounts if the table is empty, so there's
     something to transfer between right away. Idempotent -- safe to call on
