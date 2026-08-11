@@ -1,81 +1,147 @@
+"""Business logic for transactions -- reads and writes Postgres directly.
+
+Deliberately simple for now: one SQLAlchemy session per call, no repository
+layer indirection. Accounts referenced here are rows in the new `accounts`
+table (models/database.py), separate from the in-memory accounts the
+customer/account endpoints still use -- see models/database.py's docstring.
+"""
+
+import uuid
+from datetime import datetime, timezone
 from typing import List, Optional
+
 from fastapi import HTTPException, status
-from models.domain import Transaction
+from sqlalchemy import select
 
-# Mock data sooo we delete later
-_transactions_db = {}
-_accounts_db = {
-    "ACC-123": {"id": "ACC-123", "balance": 5000.0, "is_active": True},
-    "ACC-456": {"id": "ACC-456", "balance": 250.0, "is_active": True},
-}
+from models.database import Account as AccountORM, SessionLocal, Transaction as TransactionORM
+from models.domain import TransactionType
 
-def process_transfer(from_account_id: str, to_account_id: str, amount: float, description: Optional[str]) -> Transaction:
-    """Executes business logic for a money transfer."""
-    
-    from_account = _accounts_db.get(from_account_id)
-    to_account = _accounts_db.get(to_account_id)
 
-    # 1. Validation Constraints
-    if not from_account or not to_account:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, 
-            detail="One or both accounts not found."
-        )
-        
-    if not from_account["is_active"] or not to_account["is_active"]:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
-            detail="Cannot transfer using inactive accounts."
-        )
+def _serialize(transaction: TransactionORM) -> dict:
+    """Shape a Transaction row the same way the rest of the API returns transactions."""
+    return {
+        "transaction_id": transaction.id,
+        "from_account_id": transaction.from_account_id,
+        "to_account_id": transaction.to_account_id,
+        "amount": transaction.amount,
+        "description": transaction.description,
+        "type": transaction.type,
+        "timestamp": transaction.timestamp,
+    }
 
-    if from_account["balance"] < amount:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
-            detail="Insufficient funds in the origin account."
-        )
 
-    # 2. Atomic Execution (The "Transaction Block")
+def create_transaction(txn_data: dict) -> dict:
+    """Record a transaction directly -- no balance movement, just a ledger
+    row. Useful for deposit/withdrawal-style entries that don't need
+    process_transfer's two-account dance. Expects the shape of
+    TransactionCreate: from_account, to_account, amount, transaction_type.
+    """
     try:
-        from_account["balance"] -= amount
-        to_account["balance"] += amount
-    except Exception:
+        tx_type = TransactionType(txn_data.get("transaction_type"))
+    except ValueError:
+        valid = [t.value for t in TransactionType]
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-            detail="An error occurred while processing the transfer."
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"transaction_type must be one of {valid}.",
         )
 
-    # 3. Create and store the domain entity
-    transaction = Transaction(
-        from_account_id=from_account_id,
-        to_account_id=to_account_id,
-        amount=amount,
-        description=description
-    )
-    
-    _transactions_db[transaction.transaction_id] = transaction
-    return transaction
+    amount = txn_data.get("amount")
+    if amount is None or amount <= 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="amount must be greater than 0.")
 
-def list_transactions(start_date: Optional[str] = None, transaction_type: Optional[str] = None) -> List[Transaction]:
-    """Retrieves all transactions, applying optional query filters."""
-    results = list(_transactions_db.values())
+    from_account_id = txn_data.get("from_account") or txn_data.get("from_account_id")
+    to_account_id = txn_data.get("to_account") or txn_data.get("to_account_id")
 
-    if transaction_type:
-        results = [t for t in results if t.transaction_type == transaction_type.upper()]
+    with SessionLocal() as session:
+        # `to_account_id`/`from_account_id` are foreign keys onto accounts,
+        # so an unknown account would otherwise surface as a raw, unhandled
+        # IntegrityError (-> 500) instead of a clean 404. Check up front.
+        for account_id in (from_account_id, to_account_id):
+            if account_id and session.get(AccountORM, account_id) is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Account '{account_id}' not found.")
 
-    if start_date:
-        # Assuming start_date is passed as YYYY-MM-DD
-        results = [t for t in results if t.timestamp >= start_date]
-
-    return results
-
-def get_transaction(transaction_id: str) -> Transaction:
-    """Fetches a specific transaction by its ID."""
-    transaction = _transactions_db.get(transaction_id)
-    
-    if not transaction:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, 
-            detail=f"Transaction '{transaction_id}' not found."
+        transaction = TransactionORM(
+            id=str(uuid.uuid4()),
+            from_account_id=from_account_id,
+            to_account_id=to_account_id,
+            amount=amount,
+            description=txn_data.get("description"),
+            type=tx_type.value,
+            timestamp=datetime.now(timezone.utc),
         )
-        
-    return transaction
+        session.add(transaction)
+        session.commit()
+        session.refresh(transaction)
+        return _serialize(transaction)
+
+
+def get_transactions(start_date: Optional[str] = None, transaction_type: Optional[str] = None) -> List[dict]:
+    """Return transactions, optionally filtered by start date (YYYY-MM-DD) or type."""
+    with SessionLocal() as session:
+        stmt = select(TransactionORM)
+
+        if transaction_type:
+            stmt = stmt.where(TransactionORM.type == transaction_type)
+
+        if start_date:
+            try:
+                start = datetime.strptime(start_date, "%Y-%m-%d")
+            except ValueError:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid start_date; use YYYY-MM-DD.")
+            stmt = stmt.where(TransactionORM.timestamp >= start)
+
+        transactions = session.scalars(stmt).all()
+        return [_serialize(t) for t in transactions]
+
+
+def get_transaction(transaction_id: str) -> dict:
+    """Fetch a single transaction by ID; raises 404 if not found."""
+    with SessionLocal() as session:
+        transaction = session.get(TransactionORM, transaction_id)
+        if transaction is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Transaction '{transaction_id}' not found.")
+        return _serialize(transaction)
+
+
+def process_transfer(
+    from_account_id: str, to_account_id: str, amount: float, description: Optional[str] = None
+) -> dict:
+    """Move money between two accounts and record the transaction."""
+    if amount <= 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Transfer amount must be greater than 0.")
+    if from_account_id == to_account_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot transfer money to the same account.")
+
+    with SessionLocal() as session:
+        from_account = session.get(AccountORM, from_account_id)
+        if from_account is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Account '{from_account_id}' not found.")
+
+        to_account = session.get(AccountORM, to_account_id)
+        if to_account is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Account '{to_account_id}' not found.")
+
+        if not from_account.is_active or not to_account.is_active:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot transfer using an inactive account.")
+
+        if from_account.balance < amount:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Insufficient funds in the origin account.")
+
+        # Both balance updates and the transaction insert commit together --
+        # if anything above raised, nothing here has been written yet.
+        from_account.balance -= amount
+        to_account.balance += amount
+
+        transaction = TransactionORM(
+            id=str(uuid.uuid4()),
+            from_account_id=from_account_id,
+            to_account_id=to_account_id,
+            amount=amount,
+            description=description,
+            type=TransactionType.TRANSFER.value,
+            timestamp=datetime.now(timezone.utc),
+        )
+        session.add(transaction)
+        session.commit()
+        session.refresh(transaction)
+        return _serialize(transaction)
