@@ -1,0 +1,5 @@
+-r requirements.txt
+
+# Test tooling (needed by app/__tests__/)
+pytest>=8.0
+httpx>=0.27
