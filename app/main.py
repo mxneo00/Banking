@@ -34,9 +34,10 @@ app.include_router(account_router)
 app.include_router(transaction_router)
 
 @app.on_event("startup")
-def load_seed_data():
-    """Create Postgres tables (if needed) and load seed data for local development and demos."""
+def on_startup():
+    """Create Postgres tables, seed demo accounts, then in-memory demo data."""
     from models.database import init_db, seed_demo_accounts
+
     init_db()
     seed_demo_accounts()
 

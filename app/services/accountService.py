@@ -1,35 +1,69 @@
-""" Business logic for opening and reading accounts """
+"""Business logic for opening and reading accounts (Postgres via models.database)."""
 
-from models.exceptions import ValidationError
-from models.repository import repository
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from models.database import Account
+from models.exceptions import NotFoundError, ValidationError
 
 
-def open_account(customer_id, account_type, opening_balance=0.0,
-                 minimum_balance=None, overdraft_limit=None):
-    """Open a savings or checking account for an existing, active customer."""
+def _next_account_number(db: Session) -> str:
+    """Generate the next AC#### number from existing rows."""
+    numbers = db.scalars(select(Account.account_number)).all()
+    max_n = 1000
+    for number in numbers:
+        if number.startswith("AC") and number[2:].isdigit():
+            max_n = max(max_n, int(number[2:]))
+    return f"AC{max_n + 1}"
+
+
+def open_account(
+    db: Session,
+    customer_id: str,
+    account_type: str,
+    opening_balance: float = 0.0,
+    minimum_balance: float | None = None,
+    overdraft_limit: float | None = None,
+) -> Account:
+    """Open a savings or checking account and persist it to Postgres."""
     if account_type not in ("savings", "checking"):
         raise ValidationError(
             f"account_type must be 'savings' or 'checking', got '{account_type}'."
         )
+    if not customer_id or not customer_id.strip():
+        raise ValidationError("customer_id is required and cannot be empty.")
+    if opening_balance < 0:
+        raise ValidationError("Opening balance cannot be negative.")
+    if account_type == "savings" and overdraft_limit is not None:
+        raise ValidationError("overdraft_limit does not apply to a savings account.")
+    if account_type == "checking" and minimum_balance is not None:
+        raise ValidationError("minimum_balance does not apply to a checking account.")
 
-    customer = repository.get_customer(customer_id)
-    if not customer.is_active:
-        raise ValidationError(
-            f"Customer '{customer_id}' is deactivated and cannot open new accounts."
-        )
-
-    # Branch is derived from the customer — callers never send it.
-    # None means the client omitted the setting, so the account class keeps its
-    # own default (100.0 for savings, 500.0 for checking).
+    min_bal = None
+    od_limit = None
     if account_type == "savings":
-        if minimum_balance is None:
-            return repository.open_savings_account(customer_id, opening_balance)
-        return repository.open_savings_account(
-            customer_id, opening_balance, minimum_balance
-        )
+        min_bal = 100.0 if minimum_balance is None else minimum_balance
+    else:
+        od_limit = 500.0 if overdraft_limit is None else overdraft_limit
 
-    if overdraft_limit is None:
-        return repository.open_checking_account(customer_id, opening_balance)
-    return repository.open_checking_account(
-        customer_id, opening_balance, overdraft_limit
+    account = Account(
+        account_number=_next_account_number(db),
+        customer_id=customer_id.strip(),
+        account_type=account_type,
+        balance=round(float(opening_balance), 2),
+        minimum_balance=min_bal,
+        overdraft_limit=od_limit,
+        branch_code="BR001",
+        is_active=True,
     )
+    db.add(account)
+    db.flush()
+    return account
+
+
+def get_account(db: Session, account_number: str) -> Account:
+    """Fetch a single account by number; raises NotFoundError if missing."""
+    account = db.get(Account, account_number)
+    if account is None:
+        raise NotFoundError(f"Account '{account_number}' does not exist.")
+    return account

@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends
 from models.schemas import CustomerCreate, CustomerUpdate
 from services import customerService
-from database import get_db
+from models.database import get_db
 
 router = APIRouter(prefix="/api/v1/customers", tags=["customers"])
 
