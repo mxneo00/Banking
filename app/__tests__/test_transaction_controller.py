@@ -12,13 +12,34 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from controllers.transactionController import router as transaction_router
+from models.database import SessionLocal, UserORM
+from services import authService
 
 
 @pytest.fixture
 def client():
+    """A TestClient pre-authenticated as an admin.
+
+    Every route here now requires a valid Bearer access token, and POST
+    /transactions is teller/admin-only (see security/dependencies.py and
+    transactionController.py's RBAC rules). Authenticating as an admin for
+    every request keeps this file focused on the HTTP contract (status
+    codes, serialization) rather than re-covering RBAC ownership rules,
+    which belong with the auth-focused tests instead.
+    """
+    with SessionLocal() as db:
+        db.query(UserORM).delete()  # avoid a stale-email DuplicateError on repeat runs
+        db.commit()
+        authService.create_staff_user(
+            db, email="txn-admin@example.com", password="txnadminpassword", role="admin", branch_id="BR001",
+        )
+        access_token, _ = authService.login(db, "txn-admin@example.com", "txnadminpassword")
+
     app = FastAPI()
     app.include_router(transaction_router)
-    return TestClient(app)
+    test_client = TestClient(app)
+    test_client.headers.update({"Authorization": f"Bearer {access_token}"})
+    return test_client
 
 
 # ---------------------------------------------------------------------------
