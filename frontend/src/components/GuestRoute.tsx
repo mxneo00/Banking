@@ -1,18 +1,17 @@
 /**
- * Route guard for public-only pages (login, register).
+ * Route guard for public-only pages (login, register, staff login).
  *
  * Opposite of `ProtectedRoute`: if the user is already authenticated, redirect
- * to the dashboard instead of showing the sign-in form again.
- *
- * Used in `App.tsx` around `/login` and `/register`.
+ * to their role home instead of showing the sign-in form again.
  */
 
 import { Navigate, Outlet } from 'react-router-dom'
 import { Box, CircularProgress } from '@mui/material'
 import { useAuth } from '../context/AuthContext'
+import { homePathForRole } from '../types/auth'
 
 export default function GuestRoute() {
-  const { isAuthenticated, isLoading } = useAuth()
+  const { user, isAuthenticated, isLoading } = useAuth()
 
   if (isLoading) {
     return (
@@ -30,7 +29,7 @@ export default function GuestRoute() {
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/" replace />
+    return <Navigate to={homePathForRole(user?.role)} replace />
   }
 
   return <Outlet />

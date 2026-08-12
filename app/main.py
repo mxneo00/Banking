@@ -66,12 +66,13 @@ def on_startup():
     customerService/accountService are fully Postgres-backed now, so
     nothing reads that in-memory store anymore.
     """
-    from models.database import init_db, seed_demo_accounts, seed_demo_admin, seed_demo_customers
+    from models.database import init_db, seed_demo_accounts, seed_demo_admin, seed_demo_customers, seed_demo_staff
 
     init_db()
     seed_demo_customers()
     seed_demo_accounts()
     seed_demo_admin()
+    seed_demo_staff()
 
 """ 
 Error handlers: map each domain exception (and FastAPI's own request validation errors) to the HTTP status code it should produce.
