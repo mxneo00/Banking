@@ -11,6 +11,7 @@ and is the one place that knows how to turn a domain exception (or a failed requ
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -28,6 +29,20 @@ from models.exceptions import (
 )
 
 app = FastAPI(title="Bank Management API")
+
+# The frontend (Vite dev server) runs on a different origin than this API,
+# so without CORS a browser blocks every request before it even leaves the
+# tab -- curl/Postman never hit this wall, since CORS is a browser
+# enforcement, not a server-side restriction on who can connect. Only the
+# Vite dev server's own origins are allowed; add the real deployed frontend
+# origin here too once one exists.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 #app.include_router(branch_router)  # NOTE: branch_router doesn't exist -- no branchController.py in this project
 app.include_router(auth_router)
