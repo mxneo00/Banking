@@ -29,7 +29,7 @@ import AccountTreeIcon from '@mui/icons-material/AccountTree'
 import { getApiErrorMessage } from '../api/client'
 import { listCustomers } from '../api/customers'
 import { useAuth } from '../context/AuthContext'
-import type { Customer } from '../types/banking'
+import type { Customer } from '../types/customer'
 
 export default function AnalyticsPage() {
   const { user } = useAuth()

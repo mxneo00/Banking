@@ -16,7 +16,8 @@ import { fetchAccounts } from '../api/accounts'
 import { getApiErrorMessage } from '../api/client'
 import { fetchCustomer } from '../api/customers'
 import { useAuth } from '../context/AuthContext'
-import type { Account, Customer } from '../types/banking'
+import type { Account } from '../types/account'
+import type { Customer } from '../types/customer'
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-US', {

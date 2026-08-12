@@ -21,7 +21,7 @@ import { getApiErrorMessage } from '../api/client'
 import { fetchCustomer } from '../api/customers'
 import { transferMoney } from '../api/transactions'
 import { useAuth } from '../context/AuthContext'
-import type { Account } from '../types/banking'
+import type { Account } from '../types/account'
 
 export default function AccountPage() {
   const { user } = useAuth()

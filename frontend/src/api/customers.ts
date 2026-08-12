@@ -3,7 +3,7 @@
  */
 
 import { apiClient } from './client'
-import type { Customer } from '../types/banking'
+import type { Customer } from '../types/customer'
 
 export async function fetchCustomer(customerId: string): Promise<Customer> {
   const { data } = await apiClient.get<Customer>(`/api/v1/customers/${customerId}`)
