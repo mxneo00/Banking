@@ -8,7 +8,6 @@ import AnalyticsPage from './pages/AnalyticsPage'
 import AccountPage from './pages/AccountPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
-import StaffLoginPage from './pages/StaffLoginPage'
 
 export default function App() {
   return (
@@ -17,7 +16,6 @@ export default function App() {
         <Route element={<GuestRoute />}>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
-          <Route path="/staff/login" element={<StaffLoginPage />} />
         </Route>
 
         {/* Customer portal */}
@@ -28,13 +26,14 @@ export default function App() {
           </Route>
         </Route>
 
-        {/* Staff portal — unauthenticated users go to /staff/login */}
+        {/* Staff portal — unauthenticated users go to /login */}
         <Route element={<StaffRoute />}>
           <Route element={<AppLayout />}>
             <Route path="analytics" element={<AnalyticsPage />} />
           </Route>
         </Route>
 
+        <Route path="/staff/login" element={<Navigate to="/login" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

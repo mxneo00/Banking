@@ -1,5 +1,5 @@
 /**
- * Route guard for public-only pages (login, register, staff login).
+ * Route guard for public-only pages (login, register).
  *
  * Opposite of `ProtectedRoute`: if the user is already authenticated, redirect
  * to their role home instead of showing the sign-in form again.

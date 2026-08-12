@@ -2,7 +2,7 @@
  * Staff-only route guard.
  *
  * Requires an authenticated staff role (teller / branch_manager / admin).
- * Unauthenticated users go to `/staff/login`. Customers are sent to `/`.
+ * Unauthenticated users go to `/login`. Customers are sent to `/`.
  */
 
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
@@ -30,7 +30,7 @@ export default function StaffRoute() {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/staff/login" replace state={{ from: location.pathname }} />
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />
   }
 
   if (!isStaffRole(user?.role)) {

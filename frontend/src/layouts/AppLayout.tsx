@@ -60,7 +60,7 @@ export default function AppLayout() {
 
   async function handleLogout() {
     await logout()
-    navigate(isStaffRole(user?.role) ? '/staff/login' : '/login', { replace: true })
+    navigate('/login', { replace: true })
   }
 
   const drawer = (

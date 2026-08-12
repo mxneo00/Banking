@@ -76,7 +76,7 @@ export default function LoginPage() {
             Sign in
           </Typography>
           <Typography color="text.secondary" sx={{ mb: 3 }}>
-            Use your bank account email and password.
+            Sign in with your email and password.
           </Typography>
 
           <Stack component="form" spacing={2} onSubmit={handleSubmit}>
@@ -108,12 +108,6 @@ export default function LoginPage() {
             Need an account?{' '}
             <Link component={RouterLink} to="/register">
               Register as a customer
-            </Link>
-          </Typography>
-          <Typography variant="body2" sx={{ mt: 1 }}>
-            Bank employee?{' '}
-            <Link component={RouterLink} to="/staff/login">
-              Employee sign-in
             </Link>
           </Typography>
         </CardContent>
