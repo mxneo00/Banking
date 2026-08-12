@@ -115,4 +115,27 @@ def refresh_access_token(db: Session, refresh_token: str) -> str:
     user = db.get(UserORM, payload.get("sub"))
     if user is None or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive.")
+
+    # Same revocation check get_current_user does for access tokens (see
+    # security/dependencies.py) -- a refresh token issued before a logout
+    # must not be able to mint a fresh access token afterward. Without this,
+    # logout would only kill the (short-lived) access token you happened to
+    # be holding, while the 7-day refresh token quietly kept working.
+    if payload.get("ver") != user.token_version:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token has been revoked; please log in again.")
+
     return create_access_token(user)
+
+
+def logout(db: Session, user: UserORM) -> None:
+    """Invalidate every access/refresh token issued to `user` so far.
+
+    Doesn't touch, delete, or blocklist any specific token -- it just bumps
+    token_version, which makes every previously issued "ver" claim stale.
+    get_current_user and refresh_access_token both check this, so the
+    effect is immediate: the access token this very request used to
+    authenticate becomes invalid the moment this commits, and so does every
+    refresh token issued before now.
+    """
+    user.token_version += 1
+    db.commit()

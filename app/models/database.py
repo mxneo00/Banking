@@ -16,7 +16,7 @@ from enum import Enum
 from pathlib import Path
 
 from dotenv import load_dotenv
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, String, create_engine
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, create_engine
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 
 # This file: app/models/database.py -> parents[2] is the project root.
@@ -154,8 +154,18 @@ class UserORM(Base):
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
+    # Bumped by authService.logout(). Every access/refresh token embeds the
+    # token_version it was issued under (see security/tokens.py); on each
+    # request, get_current_user compares the token's version against this
+    # column and rejects it on a mismatch. Logging out increments this,
+    # which instantly invalidates every token issued before that moment --
+    # no denylist table needed, just one integer.
+    token_version = Column(Integer, nullable=False, default=0)
+
     def to_dict(self) -> dict:
-        """Serialized view for API responses. Never includes hashed_password."""
+        """Serialized view for API responses. Never includes hashed_password
+        or token_version -- the latter is an internal revocation mechanism,
+        not something a client needs to see."""
         return {
             "user_id": self.user_id,
             "email": self.email,

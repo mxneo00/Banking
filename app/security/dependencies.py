@@ -55,6 +55,14 @@ def get_current_user(
     # but it stops working the moment an admin deactivates them.
     if user is None or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive.")
+
+    # The actual logout mechanism: this token was minted with whatever
+    # token_version the user had *at issuance time* (see security/tokens.py).
+    # authService.logout() bumps the column, so any token from before that
+    # moment carries a now-stale "ver" and gets rejected here -- even though
+    # it's still validly signed and not yet expired.
+    if payload.get("ver") != user.token_version:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked; please log in again.")
     return user
 
 

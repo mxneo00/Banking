@@ -51,6 +51,10 @@ def _create_token(user, expires_delta: timedelta, token_type: str) -> str:
         "email": user.email,
         "roles": [user.role],     # a list; even though today a user has exactly one role, itkeeps the token shape stable if multi-role support gets added later
         "type": token_type,       # "access" or "refresh", stops a refresh token being used to call normal endpoints, and vice versa (see decode_token below)
+        "ver": user.token_version,  # must match UserORM.token_version at request time or the
+                                     # token is treated as revoked -- see security/dependencies.py.
+                                     # This is what makes /auth/logout actually invalidate tokens
+                                     # instead of just telling the client to forget one.
         "iat": now,                # issued-at
         "exp": now + expires_delta,  # expiry, PyJWT checks this automatically on decode
     }

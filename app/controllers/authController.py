@@ -57,6 +57,18 @@ def get_me(current_user: UserORM = Depends(get_current_user)):
     return current_user.to_dict()
 
 
+# POST /api/v1/auth/logout - invalidate every token issued to the caller.
+# No request body: Depends(get_current_user) already identifies who's
+# logging out from their Bearer token, and the SAME check it just ran
+# (token_version) is what makes the logout stick on every future request.
+@router.post("/logout")
+def logout(db: Session = Depends(get_db), current_user: UserORM = Depends(get_current_user)):
+    """Log out -- revokes ALL of this user's outstanding tokens (access and
+    refresh, every device/session), not just the one used to call this."""
+    authService.logout(db, current_user)
+    return {"message": "Logged out. All previously issued tokens for this account are now invalid."}
+
+
 # POST /api/v1/auth/staff - ADMIN-ONLY: onboard a teller/branch_manager/admin.
 # Note the dependency: require_roles(UserRole.ADMIN) means this whole route
 # 403s for anyone who isn't an admin, before create_staff_user ever runs.
