@@ -3,6 +3,14 @@
 Runs once when the app starts so in-memory branches/customers exist for
 customer endpoints. Postgres demo accounts (ACC-123 / ACC-456) are seeded
 separately by models.database.seed_demo_accounts() during startup.
+
+STATUS: NOT currently called by anything. main.py's startup used to call
+seed_demo_data() here, but switched to seed_demo_customers() in
+models/database.py instead (branches/customers now seed straight into
+Postgres there). This function still builds in-memory branches/customers
+via models/repository.py, which is itself no longer wired into the app --
+see the note at the top of repository.py. Kept for now as reference, not
+part of the live startup sequence.
 """
 
 from sqlalchemy.orm import Session
