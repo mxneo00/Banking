@@ -8,6 +8,7 @@ import {
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz'
+import { useAuth } from '../context/AuthContext'
 
 const summaryCards = [
   {
@@ -31,13 +32,15 @@ const summaryCards = [
 ]
 
 export default function DashboardPage() {
+  const { user } = useAuth()
+
   return (
     <Box>
       <Typography variant="h4" gutterBottom>
         Dashboard
       </Typography>
       <Typography color="text.secondary" sx={{ mb: 3 }}>
-        Overview of your accounts and recent banking activity.
+        Welcome back{user ? `, ${user.email}` : ''}. Overview of your accounts and recent banking activity.
       </Typography>
 
       <Grid container spacing={2}>

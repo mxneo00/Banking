@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { Link as RouterLink, Outlet, useLocation } from 'react-router-dom'
+import { Link as RouterLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   AppBar,
   Box,
+  Button,
+  Chip,
   Divider,
   Drawer,
   IconButton,
@@ -10,6 +12,7 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  Stack,
   Toolbar,
   Typography,
   useMediaQuery,
@@ -19,6 +22,7 @@ import MenuIcon from '@mui/icons-material/Menu'
 import DashboardIcon from '@mui/icons-material/Dashboard'
 import InsightsIcon from '@mui/icons-material/Insights'
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance'
+import { useAuth } from '../context/AuthContext'
 
 const DRAWER_WIDTH = 240
 
@@ -31,8 +35,15 @@ const navItems = [
 export default function AppLayout() {
   const theme = useTheme()
   const location = useLocation()
+  const navigate = useNavigate()
+  const { user, logout } = useAuth()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const [mobileOpen, setMobileOpen] = useState(false)
+
+  async function handleLogout() {
+    await logout()
+    navigate('/login', { replace: true })
+  }
 
   const drawer = (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -91,6 +102,17 @@ export default function AppLayout() {
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             Bank Management Portal
           </Typography>
+          {user && (
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+              <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' } }}>
+                {user.email}
+              </Typography>
+              <Chip label={user.role} size="small" color="secondary" variant="outlined" />
+              <Button color="inherit" size="small" onClick={handleLogout}>
+                Log out
+              </Button>
+            </Stack>
+          )}
         </Toolbar>
       </AppBar>
 
