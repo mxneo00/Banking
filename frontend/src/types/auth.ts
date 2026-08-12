@@ -11,6 +11,16 @@
 
 export type UserRole = 'customer' | 'teller' | 'branch_manager' | 'admin'
 
+export const STAFF_ROLES: readonly UserRole[] = ['teller', 'branch_manager', 'admin']
+
+export function isStaffRole(role: UserRole | null | undefined): boolean {
+  return role != null && (STAFF_ROLES as readonly string[]).includes(role)
+}
+
+export function homePathForRole(role: UserRole | null | undefined): string {
+  return isStaffRole(role) ? '/analytics' : '/'
+}
+
 export type User = {
   user_id: string
   email: string

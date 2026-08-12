@@ -284,3 +284,39 @@ def seed_demo_admin():
             )
         )
         session.commit()
+
+
+def seed_demo_staff():
+    """Insert additional local-dev staff logins (teller + branch manager).
+
+    Complements `seed_demo_admin()` without changing its behavior -- tests and
+    existing flows that rely on the admin-only empty-table seed stay the same.
+
+    Staff cannot self-register through POST /auth/register, so these accounts
+    exist for frontend staff-dashboard demos. Idempotent by email.
+    """
+    from security.passwords import hash_password
+
+    demo_staff = [
+        ("teller@bank.local", "teller123", UserRole.TELLER.value, "BR001"),
+        ("manager@bank.local", "manager123", UserRole.BRANCH_MANAGER.value, "BR001"),
+    ]
+
+    with SessionLocal() as session:
+        added = False
+        for email, password, role, branch_id in demo_staff:
+            exists = session.query(UserORM).filter(UserORM.email == email).first()
+            if exists is not None:
+                continue
+            session.add(
+                UserORM(
+                    email=email,
+                    hashed_password=hash_password(password),
+                    role=role,
+                    branch_id=branch_id,
+                    is_active=True,
+                )
+            )
+            added = True
+        if added:
+            session.commit()
