@@ -10,6 +10,11 @@ In a real system this file is what you'd replace with SQLAlchemy models
 and actual database queries — everything above it (services, controllers)
 would stay the same, because they only ever call methods like
 `get_customer(id)`, not raw SQL.
+
+STATUS: that replacement has now happened. customerService, accountService,
+and transactionService all talk to Postgres directly (see models/database.py)
+and no longer call anything in this file. Nothing in the running app reaches
+this class anymore -- kept for now as reference, not wired in.
 """
 
 from models.domain import (

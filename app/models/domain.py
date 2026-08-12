@@ -5,6 +5,15 @@ from typing import Optional
 
 from models.exceptions import DuplicateError, InsufficientFundsError, ValidationError
 
+""" NOTE: customers, branches, accounts, and transactions are all Postgres-backed
+ now (see models/database.py). The plain classes below -- require_text,
+ Transaction, Customer, Branch, Account, SavingsAccount, CheckingAccount --
+ were the original in-memory versions; they're only ever touched by
+ models/repository.py, which nothing in the running app calls anymore.
+ Not deleted (yet) in case any of this is still wanted as reference/rollback,
+ but no live request path reaches any of it. TransactionType below is the
+ one exception -- transactionService.py imports and uses it directly."""
+
 def require_text(value: Optional[str], error_message: str) -> str:
     """Utility function to ensure a string is not None or empty."""
     if value is None or value.strip() == "":

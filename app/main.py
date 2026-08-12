@@ -28,7 +28,7 @@ from models.exceptions import (
 
 app = FastAPI(title="Bank Management API")
 
-#app.include_router(branch_router)
+#app.include_router(branch_router)  # NOTE: branch_router doesn't exist -- no branchController.py in this project
 app.include_router(customer_router)
 app.include_router(account_router)
 app.include_router(transaction_router)

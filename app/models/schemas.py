@@ -12,6 +12,9 @@ class CustomerUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[str] = None
 
+# NOTE: not used by any controller right now -- transactionController uses
+# TransactionCreate/TransferRequest below instead. Covered by test_schemas.py
+# but not wired into a live endpoint.
 class DepositRequest(BaseModel):
     amount: float = Field(..., gt=0, description="Deposit amount must be positive")
 

@@ -129,6 +129,7 @@ def reset_and_seed_db(confirm: bool = False):
         raise ValueError("You must pass confirm=True to reset the database.")
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
+    seed_demo_customers()
     seed_demo_accounts()
 
 
