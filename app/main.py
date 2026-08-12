@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from controllers.accountController import router as account_router
+from controllers.authController import router as auth_router
 from controllers.customerController import router as customer_router
 from controllers.transactionController import router as transaction_router
 
@@ -29,24 +30,28 @@ from models.exceptions import (
 app = FastAPI(title="Bank Management API")
 
 #app.include_router(branch_router)  # NOTE: branch_router doesn't exist -- no branchController.py in this project
+app.include_router(auth_router)
 app.include_router(customer_router)
 app.include_router(account_router)
 app.include_router(transaction_router)
 
 @app.on_event("startup")
 def on_startup():
-    """Create Postgres tables and seed demo customers + accounts.
+    """Create Postgres tables and seed demo customers + accounts + one admin.
 
-    Customers must be seeded before accounts -- Account.customer_id is a
-    real foreign key onto customers.customer_id now. seedData.py's
-    in-memory repository seeding was retired: customerService/accountService
-    are fully Postgres-backed, so nothing reads that in-memory store anymore.
+    Order matters: customers before accounts (Account.customer_id is a real
+    FK onto customers.customer_id), and the admin seed is independent but
+    grouped here for the same "get a working demo state on first run"
+    reason. seedData.py's in-memory repository seeding was retired:
+    customerService/accountService are fully Postgres-backed now, so
+    nothing reads that in-memory store anymore.
     """
-    from models.database import init_db, seed_demo_accounts, seed_demo_customers
+    from models.database import init_db, seed_demo_accounts, seed_demo_admin, seed_demo_customers
 
     init_db()
     seed_demo_customers()
     seed_demo_accounts()
+    seed_demo_admin()
 
 """ 
 Error handlers: map each domain exception (and FastAPI's own request validation errors) to the HTTP status code it should produce.

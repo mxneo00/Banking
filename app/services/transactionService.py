@@ -30,6 +30,26 @@ def _serialize(transaction: TransactionORM) -> dict:
     }
 
 
+def _debit_floor(account: AccountORM) -> float:
+    """Lowest balance allowed after a debit.
+
+    Accounts with an ``overdraft_limit`` may go negative down to
+    ``-overdraft_limit``. Otherwise the balance cannot go below zero.
+    """
+    if account.overdraft_limit is not None:
+        return -float(account.overdraft_limit)
+    return 0.0
+
+
+def _ensure_can_debit(account: AccountORM, amount: float) -> None:
+    """Raise 400 if debiting ``amount`` would breach overdraft protection."""
+    if account.balance - amount < _debit_floor(account):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Insufficient funds.",
+        )
+
+
 def create_transaction(txn_data: dict) -> dict:
     """Create a transaction and apply its real balance effect, dispatched by
     transaction_type. Each type needs a different subset of accounts -- you
@@ -96,8 +116,7 @@ def _apply_single_account_transaction(
         if credit:
             account.balance += amount
         else:
-            if account.balance < amount:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Insufficient funds.")
+            _ensure_can_debit(account, amount)
             account.balance -= amount
 
         transaction = TransactionORM(
@@ -164,8 +183,7 @@ def process_transfer(
         if not from_account.is_active or not to_account.is_active:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot transfer using an inactive account.")
 
-        if from_account.balance < amount:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Insufficient funds in the origin account.")
+        _ensure_can_debit(from_account, amount)
 
         # Both balance updates and the transaction insert commit together --
         # if anything above raised, nothing here has been written yet.
