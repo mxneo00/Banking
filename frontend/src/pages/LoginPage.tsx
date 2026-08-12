@@ -2,7 +2,7 @@
  * Login page — public route at `/login`.
  *
  * Collects email + password and calls `useAuth().login()`. On success, navigates
- * to the page the user originally requested (via ProtectedRoute state) or `/`.
+ * to a role-appropriate home (or a previously requested path the role may open).
  * Errors from the API are shown using `getApiErrorMessage`.
  *
  * Does not talk to axios directly; all auth side effects go through AuthContext.
@@ -23,7 +23,7 @@ import {
 } from '@mui/material'
 import { getApiErrorMessage, useAuth } from '../context/AuthContext'
 import { fetchCurrentUser } from '../api/auth'
-import { homePathForRole } from '../types/auth'
+import { resolvePostLoginPath } from '../types/auth'
 
 type LocationState = {
   from?: string
@@ -48,10 +48,7 @@ export default function LoginPage() {
     try {
       await login({ email, password })
       const currentUser = await fetchCurrentUser()
-      const roleHome = homePathForRole(currentUser.role)
-      const redirectTo =
-        requestedPath && requestedPath !== '/analytics' ? requestedPath : roleHome
-      navigate(redirectTo, { replace: true })
+      navigate(resolvePostLoginPath(currentUser.role, requestedPath), { replace: true })
     } catch (err) {
       setError(getApiErrorMessage(err, 'Unable to log in.'))
     } finally {

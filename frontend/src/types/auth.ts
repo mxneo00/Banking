@@ -11,6 +11,8 @@
 
 export type UserRole = 'customer' | 'teller' | 'branch_manager' | 'admin'
 
+export type StaffRole = 'teller' | 'branch_manager' | 'admin'
+
 export const STAFF_ROLES: readonly UserRole[] = ['teller', 'branch_manager', 'admin']
 
 export function isStaffRole(role: UserRole | null | undefined): boolean {
@@ -18,7 +20,35 @@ export function isStaffRole(role: UserRole | null | undefined): boolean {
 }
 
 export function homePathForRole(role: UserRole | null | undefined): string {
-  return isStaffRole(role) ? '/analytics' : '/'
+  return isStaffRole(role) ? '/staff' : '/'
+}
+
+/** Staff-only paths (plus legacy analytics alias). */
+export function isStaffPath(path: string): boolean {
+  return (
+    path === '/staff' ||
+    path.startsWith('/staff/') ||
+    path === '/analytics' ||
+    path === '/transactions'
+  )
+}
+
+/**
+ * After login, prefer the role home unless the user was headed somewhere
+ * their role is allowed to open (avoids staff landing on customer `/`).
+ */
+export function resolvePostLoginPath(
+  role: UserRole | null | undefined,
+  requestedPath: string | undefined,
+): string {
+  const home = homePathForRole(role)
+  if (!requestedPath || requestedPath === '/') {
+    return home
+  }
+  if (isStaffRole(role)) {
+    return isStaffPath(requestedPath) ? requestedPath : home
+  }
+  return isStaffPath(requestedPath) ? home : requestedPath
 }
 
 export type User = {
@@ -47,4 +77,11 @@ export type RegisterCredentials = {
   password: string
   name: string
   branch_id: string
+}
+
+export type CreateStaffPayload = {
+  email: string
+  password: string
+  role: StaffRole
+  branch_id?: string | null
 }

@@ -12,6 +12,7 @@
 
 import { apiClient } from './client'
 import type {
+  CreateStaffPayload,
   LoginCredentials,
   RegisterCredentials,
   TokenResponse,
@@ -35,4 +36,10 @@ export async function fetchCurrentUser(): Promise<User> {
 
 export async function logoutRequest(): Promise<void> {
   await apiClient.post('/api/v1/auth/logout')
+}
+
+/** Admin-only: onboard a teller, branch_manager, or admin. */
+export async function createStaffRequest(payload: CreateStaffPayload): Promise<User> {
+  const { data } = await apiClient.post<User>('/api/v1/auth/staff', payload)
+  return data
 }
