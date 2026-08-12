@@ -273,7 +273,7 @@ def seed_demo_admin():
     from security.passwords import hash_password
 
     with SessionLocal() as session:
-        if session.query(UserORM).first() is not None:
+        if session.query(UserORM).filter(UserORM.email == "admin@bank.local").first() is not None:
             return
         session.add(
             UserORM(
