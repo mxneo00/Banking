@@ -5,6 +5,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import StaffRoute from './components/StaffRoute'
 import DashboardPage from './pages/DashboardPage'
 import AnalyticsPage from './pages/AnalyticsPage'
+import StaffTransactionsPage from './pages/StaffTransactionsPage'
 import AccountPage from './pages/AccountPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
@@ -30,6 +31,7 @@ export default function App() {
         <Route element={<StaffRoute />}>
           <Route element={<AppLayout />}>
             <Route path="analytics" element={<AnalyticsPage />} />
+            <Route path="transactions" element={<StaffTransactionsPage />} />
           </Route>
         </Route>
 

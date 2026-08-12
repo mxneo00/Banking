@@ -22,6 +22,7 @@ import MenuIcon from '@mui/icons-material/Menu'
 import DashboardIcon from '@mui/icons-material/Dashboard'
 import InsightsIcon from '@mui/icons-material/Insights'
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance'
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
 import { useAuth } from '../context/AuthContext'
 import { isStaffRole } from '../types/auth'
 
@@ -39,6 +40,7 @@ const navItems: NavItem[] = [
   { label: 'Dashboard', path: '/', icon: <DashboardIcon />, customerOnly: true },
   { label: 'Accounts', path: '/accounts', icon: <AccountBalanceIcon />, customerOnly: true },
   { label: 'Analytics', path: '/analytics', icon: <InsightsIcon />, staffOnly: true },
+  { label: 'Transactions', path: '/transactions', icon: <ReceiptLongIcon />, staffOnly: true },
 ]
 
 export default function AppLayout() {
