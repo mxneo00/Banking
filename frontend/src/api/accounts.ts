@@ -6,7 +6,7 @@
  */
 
 import { apiClient } from './client'
-import type { Account } from '../types/banking'
+import type { Account, OpenAccountRequest } from '../types/banking'
 
 export async function fetchAccount(accountNumber: string): Promise<Account> {
   const { data } = await apiClient.get<Account>(`/api/v1/accounts/${accountNumber}`)
@@ -18,4 +18,9 @@ export async function fetchAccounts(accountNumbers: string[]): Promise<Account[]
     return []
   }
   return Promise.all(accountNumbers.map((number) => fetchAccount(number)))
+}
+
+export async function openAccount(payload: OpenAccountRequest): Promise<Account> {
+  const { data } = await apiClient.post<Account>('/api/v1/accounts', payload)
+  return data
 }
