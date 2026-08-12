@@ -9,9 +9,12 @@ This file wires the three layers together:
 and is the one place that knows how to turn a domain exception (or a failed request validation) into an HTTP status code, so no individual route has to think about that itself.
 """
 
+import os
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from controllers.accountController import router as account_router
@@ -34,6 +37,22 @@ app.include_router(auth_router)
 app.include_router(customer_router)
 app.include_router(account_router)
 app.include_router(transaction_router)
+
+# CORS configuration: allow requests from the frontend (e.g., Vite dev server at localhost:5173)
+# CORS_ORIGINS is a comma-separated list of allowed origins, defaulting to http://localhost:5173 if not set in the environment.
+_cors_origins = [
+    origin.strip()
+    for origin in os.environ.get("CORS_ORIGINS", "http://localhost:5173").split(",")
+    if origin.strip()
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,  # Adjust this to your frontend's origin in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.on_event("startup")
 def on_startup():
