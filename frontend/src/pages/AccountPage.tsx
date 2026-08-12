@@ -1,5 +1,6 @@
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Card,
@@ -388,14 +389,41 @@ function TransferForm({
       <Stack spacing={2}>
         {formError && <Alert severity="error">{formError}</Alert>}
 
-        <TextField
-          label="To account number"
+        <Autocomplete
+          freeSolo
+          options={otherAccounts.map((account) => account.account_number)}
           value={toAccountId}
-          onChange={(e) => setToAccountId(e.target.value)}
-          placeholder={otherAccounts[0]?.account_number ?? 'e.g. ACC-456'}
-          size="small"
-          fullWidth
+          onInputChange={(_event, newValue) => setToAccountId(newValue)}
           disabled={isSubmitting}
+          renderOptions={(props, option) => {
+            const match = otherAccounts.find((account) => account.account_number === option)
+            return (
+              <Box component="li" {...props} key={option}>
+                <Box>
+                  <Typography variant="body2">{option}</Typography>
+                  {match && (
+                    <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                      {match.account_type} · ${match.balance.toFixed(2)}
+                    </Typography>
+                  )}
+                </Box>
+              </Box>
+            )
+          }}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              label="Destination account"
+              placeholder={
+                otherAccounts.length > 0
+                  ? 'Select or type an account number'
+                  : 'e.g. ACC-456'
+              }
+              size="small"
+              fullWidth
+              disabled={isSubmitting || otherAccounts.length === 0}
+            />
+          )}
         />
         <TextField
           label="Amount"
