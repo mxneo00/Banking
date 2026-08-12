@@ -2,11 +2,13 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import AppLayout from './layouts/AppLayout'
 import GuestRoute from './components/GuestRoute'
 import ProtectedRoute from './components/ProtectedRoute'
+import StaffRoute from './components/StaffRoute'
 import DashboardPage from './pages/DashboardPage'
 import AnalyticsPage from './pages/AnalyticsPage'
 import AccountPage from './pages/AccountPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
+import StaffLoginPage from './pages/StaffLoginPage'
 
 export default function App() {
   return (
@@ -15,13 +17,21 @@ export default function App() {
         <Route element={<GuestRoute />}>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/staff/login" element={<StaffLoginPage />} />
         </Route>
 
+        {/* Customer portal */}
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
             <Route index element={<DashboardPage />} />
-            <Route path="analytics" element={<AnalyticsPage />} />
             <Route path="accounts" element={<AccountPage />} />
+          </Route>
+        </Route>
+
+        {/* Staff portal — unauthenticated users go to /staff/login */}
+        <Route element={<StaffRoute />}>
+          <Route element={<AppLayout />}>
+            <Route path="analytics" element={<AnalyticsPage />} />
           </Route>
         </Route>
 

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { Link as RouterLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   AppBar,
@@ -23,13 +23,22 @@ import DashboardIcon from '@mui/icons-material/Dashboard'
 import InsightsIcon from '@mui/icons-material/Insights'
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance'
 import { useAuth } from '../context/AuthContext'
+import { isStaffRole } from '../types/auth'
 
 const DRAWER_WIDTH = 240
 
-const navItems = [
-  { label: 'Dashboard', path: '/', icon: <DashboardIcon /> },
-  { label: 'Analytics', path: '/analytics', icon: <InsightsIcon /> },
-  { label: 'Accounts', path: '/accounts', icon: <AccountBalanceIcon /> },
+type NavItem = {
+  label: string
+  path: string
+  icon: ReactNode
+  staffOnly?: boolean
+  customerOnly?: boolean
+}
+
+const navItems: NavItem[] = [
+  { label: 'Dashboard', path: '/', icon: <DashboardIcon />, customerOnly: true },
+  { label: 'Accounts', path: '/accounts', icon: <AccountBalanceIcon />, customerOnly: true },
+  { label: 'Analytics', path: '/analytics', icon: <InsightsIcon />, staffOnly: true },
 ]
 
 export default function AppLayout() {
@@ -40,9 +49,18 @@ export default function AppLayout() {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const [mobileOpen, setMobileOpen] = useState(false)
 
+  const visibleNav = useMemo(() => {
+    const staff = isStaffRole(user?.role)
+    return navItems.filter((item) => {
+      if (item.staffOnly) return staff
+      if (item.customerOnly) return !staff
+      return true
+    })
+  }, [user?.role])
+
   async function handleLogout() {
     await logout()
-    navigate('/login', { replace: true })
+    navigate(isStaffRole(user?.role) ? '/staff/login' : '/login', { replace: true })
   }
 
   const drawer = (
@@ -54,7 +72,7 @@ export default function AppLayout() {
       </Toolbar>
       <Divider />
       <List sx={{ px: 1 }}>
-        {navItems.map((item) => {
+        {visibleNav.map((item) => {
           const selected =
             item.path === '/'
               ? location.pathname === '/'
