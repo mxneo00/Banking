@@ -24,6 +24,7 @@ summary.
   * [Database Integration — Postgres](#database-integration--postgres)
   * [Auth & Security](#auth--security)
   * [Testing — Unit Tests & Postman (in progress)](#testing--unit-tests--postman-in-progress)
+  * [Frontend Implementation (in progress)](#frontend-implementation-in-progress)
 
 ---
 
@@ -269,3 +270,23 @@ automated unit tests and API-level verification.
   fixture.
 * Postman collection (environment variables, request scripts, response
   assertions) — not yet built.
+
+### Frontend Implementation (in progress)
+
+**Goal:** build a React + TypeScript client covering both the customer
+and staff sides of the API.
+
+* Vite + MUI scaffold, with `AuthContext` and route guards
+  (`GuestRoute`/`ProtectedRoute`/`CustomerRoute`/`StaffRoute`) gating
+  access by login state and role.
+* Customer side: login/registration, account dashboard and detail pages,
+  account opening, transfers (with recipient autocomplete), and budget
+  CRUD with an allocation chart and period filtering.
+* Staff side: a role-aware login redirect, staff dashboard, a cash desk
+  page for in-branch deposits/withdrawals, a cross-customer transaction
+  lookup page, and a branch/staff analytics page.
+* Request/response types split by resource to mirror the backend's API
+  shape, with dedicated axios modules per resource.
+* Still in progress — see [Known Gaps](#known-gaps) and the API-level
+  testing work in [Testing — Unit Tests & Postman](#testing--unit-tests--postman-in-progress)
+  for what's outstanding alongside this phase.
