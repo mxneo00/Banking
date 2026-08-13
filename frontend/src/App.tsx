@@ -9,6 +9,7 @@ import DashboardPage from './pages/DashboardPage'
 import AnalyticsPage from './pages/AnalyticsPage'
 import StaffDashboardPage from './pages/StaffDashboardPage'
 import StaffTransactionsPage from './pages/StaffTransactionsPage'
+import CashDeskPage from './pages/CashDeskPage'
 import AccountPage from './pages/AccountPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
@@ -36,6 +37,7 @@ export default function App() {
         <Route element={<StaffRoute />}>
           <Route element={<AppLayout />}>
             <Route path="staff" element={<StaffDashboardPage />} />
+            <Route path="cash-desk" element={<CashDeskPage />} />
             <Route path="analytics" element={<AnalyticsPage />} />
             <Route path="transactions" element={<StaffTransactionsPage />} />
           </Route>

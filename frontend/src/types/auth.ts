@@ -29,8 +29,13 @@ export function isStaffPath(path: string): boolean {
     path === '/staff' ||
     path.startsWith('/staff/') ||
     path === '/analytics' ||
-    path === '/transactions'
+    path === '/transactions' ||
+    path === '/cash-desk'
   )
+}
+
+export function canUseCashDesk(role: UserRole | null | undefined): boolean {
+  return role === 'teller' || role === 'admin'
 }
 
 /**

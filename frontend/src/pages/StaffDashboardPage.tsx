@@ -39,12 +39,12 @@ import {
 import GroupsIcon from '@mui/icons-material/Groups'
 import AccountTreeIcon from '@mui/icons-material/AccountTree'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
-import PointOfSaleIcon from '@mui/icons-material/PointOfSale'
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'
 import { createStaffRequest } from '../api/auth'
 import { getApiErrorMessage } from '../api/client'
 import { listCustomers } from '../api/customers'
 import { listTransactions } from '../api/transactions'
+import CashDeskPanel from '../components/CashDeskPanel'
 import { useAuth } from '../context/AuthContext'
 import type { StaffRole } from '../types/auth'
 import type { Customer } from '../types/customer'
@@ -259,27 +259,17 @@ export default function StaffDashboardPage() {
               Open full ledger
             </Button>
             <Button component={RouterLink} to="/analytics" variant="outlined">
-              Customer analytics
+              Branch overview
             </Button>
           </Stack>
 
           {isTeller && (
-            <Card variant="outlined" sx={{ mb: 3 }}>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  <PointOfSaleIcon color="primary" />
-                  <Typography variant="h6">Cash desk</Typography>
-                </Box>
-                <Typography color="text.secondary" sx={{ mb: 2 }}>
-                  Tellers (and admins) can deposit or withdraw on a customer&apos;s behalf via{' '}
-                  <code>POST /transactions</code>. Use the ledger to confirm recent activity while
-                  serving a customer.
-                </Typography>
-                <Button component={RouterLink} to="/transactions" variant="outlined" size="small">
-                  Review recent transactions
-                </Button>
-              </CardContent>
-            </Card>
+            <CashDeskPanel
+              embedded
+              onSuccess={(tx) => {
+                setTransactions((prev) => [tx, ...prev])
+              }}
+            />
           )}
 
           <Typography variant="h5" gutterBottom>

@@ -87,8 +87,8 @@ export default function DashboardPage() {
           Dashboard
         </Typography>
         <Alert severity="info">
-          This dashboard is for customer accounts. Staff users should use Analytics for
-          branch views.
+          This dashboard is for customer accounts. Staff users should use Staff home or Branch
+          overview.
         </Alert>
       </Box>
     )

@@ -23,8 +23,9 @@ import DashboardIcon from '@mui/icons-material/Dashboard'
 import InsightsIcon from '@mui/icons-material/Insights'
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
+import PointOfSaleIcon from '@mui/icons-material/PointOfSale'
 import { useAuth } from '../context/AuthContext'
-import { isStaffRole } from '../types/auth'
+import { isStaffRole, type UserRole } from '../types/auth'
 
 const DRAWER_WIDTH = 240
 
@@ -34,13 +35,22 @@ type NavItem = {
   icon: ReactNode
   staffOnly?: boolean
   customerOnly?: boolean
+  /** If set, only these roles see the item (still requires staffOnly/customerOnly rules). */
+  roles?: readonly UserRole[]
 }
 
 const navItems: NavItem[] = [
   { label: 'Dashboard', path: '/', icon: <DashboardIcon />, customerOnly: true },
   { label: 'Accounts', path: '/accounts', icon: <AccountBalanceIcon />, customerOnly: true },
   { label: 'Staff home', path: '/staff', icon: <DashboardIcon />, staffOnly: true },
-  { label: 'Analytics', path: '/analytics', icon: <InsightsIcon />, staffOnly: true },
+  {
+    label: 'Cash desk',
+    path: '/cash-desk',
+    icon: <PointOfSaleIcon />,
+    staffOnly: true,
+    roles: ['teller', 'admin'],
+  },
+  { label: 'Branch overview', path: '/analytics', icon: <InsightsIcon />, staffOnly: true },
   { label: 'Transactions', path: '/transactions', icon: <ReceiptLongIcon />, staffOnly: true },
 ]
 
@@ -54,9 +64,14 @@ export default function AppLayout() {
 
   const visibleNav = useMemo(() => {
     const staff = isStaffRole(user?.role)
+    const role = user?.role
     return navItems.filter((item) => {
-      if (item.staffOnly) return staff
       if (item.customerOnly) return !staff
+      if (item.staffOnly) {
+        if (!staff) return false
+        if (item.roles && (!role || !item.roles.includes(role))) return false
+        return true
+      }
       return true
     })
   }, [user?.role])
