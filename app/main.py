@@ -59,22 +59,16 @@ app.add_middleware(
 
 @app.on_event("startup")
 def on_startup():
-    """Create Postgres tables and seed demo customers + accounts + one admin.
+    """Create Postgres tables and seed the local demo dataset.
 
-    Order matters: customers before accounts (Account.customer_id is a real
-    FK onto customers.customer_id), and the admin seed is independent but
-    grouped here for the same "get a working demo state on first run"
-    reason. seedData.py's in-memory repository seeding was retired:
-    customerService/accountService are fully Postgres-backed now, so
-    nothing reads that in-memory store anymore.
+    Order is handled inside seed_all_demo_data() (customers before accounts,
+    accounts before transactions, etc.). Seeds are idempotent by natural key
+    so restarting the API fills in missing demo rows without wiping local data.
     """
-    from models.database import init_db, seed_demo_accounts, seed_demo_admin, seed_demo_customers, seed_demo_staff
+    from models.database import init_db, seed_all_demo_data
 
     init_db()
-    seed_demo_customers()
-    seed_demo_accounts()
-    seed_demo_admin()
-    seed_demo_staff()
+    seed_all_demo_data()
 
 """ 
 Error handlers: map each domain exception (and FastAPI's own request validation errors) to the HTTP status code it should produce.

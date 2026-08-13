@@ -1,5 +1,10 @@
 # React + TypeScript + Vite
 
+Local demo logins (seeded by the API on startup — see repo root `.env.example`):
+
+- Customer: `aisha@example.com` / `customer123`
+- Staff: `teller@bank.local` / `teller123`, `manager@bank.local` / `manager123`, `admin@bank.local` / `admin123`
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:
