@@ -53,6 +53,7 @@ class CustomerDB(Base):
     # customer's accounts" the relational way -- no redundant array of
     # account ids stored on the customer row, just query/traverse the FK.
     accounts = relationship("Account", back_populates="customer")
+    budgets = relationship("BudgetORM", back_populates="customer")
 
 
 class Account(Base):
@@ -176,6 +177,19 @@ class UserORM(Base):
             "created_at": self.created_at,
         }
 
+class BudgetORM(Base):
+    """A budget for a specific category, amount, and period (weekly, monthly, yearly) for a customer."""
+
+    __tablename__ = "budgets"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    customer_id = Column(String, ForeignKey("customers.customer_id"), nullable=False)
+    category = Column(String, nullable=False)
+    amount = Column(Float, nullable=False)
+    period = Column(String, nullable=False)  # "weekly" | "monthly"
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    customer = relationship("CustomerDB", back_populates="budgets")
 
 def init_db():
     """Create tables that don't exist yet.
