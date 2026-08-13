@@ -3,7 +3,7 @@ import { Outlet } from 'react-router-dom'
 import { AppBar, Box, IconButton, Toolbar, Typography, useMediaQuery } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
 import MenuIcon from '@mui/icons-material/Menu'
-import NavBar, { DRAWER_WIDTH, RAIL_WIDTH } from './NavBar'
+import NavBar, { DRAWER_WIDTH, RAIL_WIDTH } from '../components/NavBar'
 
 const NAV_COLLAPSED_STORAGE_KEY = 'nav_collapsed'
 
