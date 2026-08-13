@@ -12,7 +12,7 @@ DATABASE_URL is required.
 
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
 
@@ -228,73 +228,137 @@ def reset_db(confirm: bool = False):
     Base.metadata.create_all(bind=engine)
 
 def reset_and_seed_db(confirm: bool = False):
-    """Drop all tables, recreate them, and seed demo accounts. Dev/reset use only."""
+    """Drop all tables, recreate them, and seed the full local demo set."""
     if not confirm:
         raise ValueError("You must pass confirm=True to reset the database.")
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
+    seed_all_demo_data()
+
+
+def seed_all_demo_data():
+    """Run every idempotent demo seed in FK-safe order."""
     seed_demo_customers()
     seed_demo_accounts()
+    seed_demo_admin()
+    seed_demo_staff()
+    seed_demo_customer_logins()
+    seed_demo_transactions()
+    seed_demo_budgets()
+
+
+def _customer_by_email(session, email: str) -> CustomerDB | None:
+    return session.query(CustomerDB).filter(CustomerDB.email == email).first()
+
+
+def _allocate_customer_id(session, preferred_id: str, reserved: set[str]) -> str:
+    """Use preferred_id when free; otherwise DEMO-01, DEMO-02, ...
+
+    `reserved` covers ids already chosen in this seed pass (pending inserts
+    are invisible to session.get until flush).
+    """
+    if preferred_id not in reserved and session.get(CustomerDB, preferred_id) is None:
+        reserved.add(preferred_id)
+        return preferred_id
+    n = 1
+    while True:
+        candidate = f"DEMO-{n:02d}"
+        if candidate not in reserved and session.get(CustomerDB, candidate) is None:
+            reserved.add(candidate)
+            return candidate
+        n += 1
 
 
 def seed_demo_customers():
-    """Insert the demo customers seed_demo_accounts()'s accounts belong to,
-    if the table is empty. Must run before seed_demo_accounts() -- Account
-    now has a real FK onto customers.customer_id."""
+    """Ensure demo customers exist, keyed by email (not only preferred ids).
+
+    Local DBs often already have CUST-03/04/05 from Postman/manual tests.
+    Skipping solely on customer_id left Elena (BR002) missing forever.
+    """
+    demo_customers = [
+        ("CUST-01", "Aisha Khan", "aisha@example.com", "BR001", True),
+        ("CUST-02", "Ben Owusu", "ben@example.com", "BR001", True),
+        ("CUST-03", "Cara Diaz", "cara@example.com", "BR001", True),  # no accounts
+        ("CUST-04", "Dan Lee", "dan@example.com", "BR001", False),  # inactive
+        ("CUST-05", "Elena Ng", "elena@example.com", "BR002", True),
+    ]
     with SessionLocal() as session:
-        if session.query(CustomerDB).first() is not None:
-            return
-        session.add_all([
-            CustomerDB(customer_id="CUST-01", name="Aisha Khan", email="aisha@example.com", branch_id="BR001"),
-            CustomerDB(customer_id="CUST-02", name="Ben Owusu", email="ben@example.com", branch_id="BR001"),
-        ])
-        session.commit()
+        changed = False
+        reserved: set[str] = set()
+        for preferred_id, name, email, branch_id, is_active in demo_customers:
+            existing = _customer_by_email(session, email)
+            if existing is not None:
+                reserved.add(existing.customer_id)
+                if (
+                    existing.name != name
+                    or existing.branch_id != branch_id
+                    or existing.is_active != is_active
+                ):
+                    existing.name = name
+                    existing.branch_id = branch_id
+                    existing.is_active = is_active
+                    changed = True
+                continue
+            session.add(
+                CustomerDB(
+                    customer_id=_allocate_customer_id(session, preferred_id, reserved),
+                    name=name,
+                    email=email,
+                    branch_id=branch_id,
+                    is_active=is_active,
+                )
+            )
+            changed = True
+        if changed:
+            session.commit()
 
 
 def seed_demo_accounts():
-    """Insert a couple of demo accounts if the table is empty, so there's
-    something to transfer between right away. Idempotent -- safe to call on
-    every startup. Requires seed_demo_customers() to have run first."""
+    """Ensure demo accounts exist; owner resolved by customer email."""
+    # number, owner_email, type, balance, min_bal, overdraft, branch
+    demo_accounts = [
+        ("ACC-123", "aisha@example.com", "checking", 5000.0, None, 500.0, "BR001"),
+        ("ACC-124", "aisha@example.com", "savings", 1200.0, 100.0, None, "BR001"),
+        ("ACC-456", "ben@example.com", "checking", 250.0, None, 500.0, "BR001"),
+        ("ACC-789", "elena@example.com", "checking", 1800.0, None, 500.0, "BR002"),
+    ]
     with SessionLocal() as session:
-        if session.query(Account).first() is not None:
-            return
-        session.add_all([
-            Account(
-                account_number="ACC-123",
-                customer_id="CUST-01",
-                account_type="checking",
-                balance=5000.0,
-                overdraft_limit=500.0,
-                branch_code="BR001",
-                is_active=True,
-            ),
-            Account(
-                account_number="ACC-456",
-                customer_id="CUST-02",
-                account_type="checking",
-                balance=250.0,
-                overdraft_limit=500.0,
-                branch_code="BR001",
-                is_active=True,
-            ),
-        ])
-        session.commit()
+        changed = False
+        for number, owner_email, account_type, balance, min_bal, overdraft, branch in demo_accounts:
+            owner = _customer_by_email(session, owner_email)
+            if owner is None:
+                continue
+            account = session.get(Account, number)
+            if account is None:
+                session.add(
+                    Account(
+                        account_number=number,
+                        customer_id=owner.customer_id,
+                        account_type=account_type,
+                        balance=balance,
+                        minimum_balance=min_bal,
+                        overdraft_limit=overdraft,
+                        branch_code=branch,
+                        is_active=True,
+                    )
+                )
+                changed = True
+                continue
+            # Repair ownership if an older seed attached the number to the wrong id.
+            if account.customer_id != owner.customer_id or account.branch_code != branch:
+                account.customer_id = owner.customer_id
+                account.branch_code = branch
+                changed = True
+        if changed:
+            session.commit()
 
 
 def seed_demo_admin():
-    """Insert one ADMIN login if the users table is empty.
+    """Insert the bootstrap ADMIN login if that email is missing.
 
-    Bootstrapping problem this solves: creating a staff user (teller/
-    branch_manager/admin) requires an existing ADMIN to call POST
-    /api/v1/auth/staff -- but the very first admin can't be created that
-    way, since no admin exists yet to authorize it. So exactly one gets
-    seeded directly here. Change this password immediately in anything
-    beyond local dev.
+    Bootstrapping problem this solves: creating a staff user normally
+    requires an existing ADMIN to call POST /auth/staff. Idempotent by email.
     """
-    # Local import: security/passwords.py never needs to know about the
-    # database, so importing it up top would be an unused dependency for
-    # every other function in this module -- only this one seed step
-    # actually needs to hash a password.
     from security.passwords import hash_password
 
     with SessionLocal() as session:
@@ -312,19 +376,13 @@ def seed_demo_admin():
 
 
 def seed_demo_staff():
-    """Insert additional local-dev staff logins (teller + branch manager).
-
-    Complements `seed_demo_admin()` without changing its behavior -- tests and
-    existing flows that rely on the admin-only empty-table seed stay the same.
-
-    Staff cannot self-register through POST /auth/register, so these accounts
-    exist for frontend staff-dashboard demos. Idempotent by email.
-    """
+    """Insert local-dev staff logins (teller / manager / BR002 teller) by email."""
     from security.passwords import hash_password
 
     demo_staff = [
         ("teller@bank.local", "teller123", UserRole.TELLER.value, "BR001"),
         ("manager@bank.local", "manager123", UserRole.BRANCH_MANAGER.value, "BR001"),
+        ("teller.east@bank.local", "teller123", UserRole.TELLER.value, "BR002"),
     ]
 
     with SessionLocal() as session:
@@ -343,5 +401,136 @@ def seed_demo_staff():
                 )
             )
             added = True
+        if added:
+            session.commit()
+
+
+def seed_demo_customer_logins():
+    """Link login users to demo customers so the customer portal is demoable.
+
+    Idempotent by email. Resolves customer_id from the customer email row so
+    logins stay correct when preferred CUST-0x ids were already taken.
+    Skips inactive Dan (no login).
+    """
+    from security.passwords import hash_password
+
+    demo_logins = [
+        ("aisha@example.com", "customer123"),
+        ("ben@example.com", "customer123"),
+        ("cara@example.com", "customer123"),
+        ("elena@example.com", "customer123"),
+    ]
+
+    with SessionLocal() as session:
+        changed = False
+        for email, password in demo_logins:
+            customer = _customer_by_email(session, email)
+            if customer is None:
+                continue
+            user = session.query(UserORM).filter(UserORM.email == email).first()
+            if user is None:
+                session.add(
+                    UserORM(
+                        email=email,
+                        hashed_password=hash_password(password),
+                        role=UserRole.CUSTOMER.value,
+                        customer_id=customer.customer_id,
+                        branch_id=customer.branch_id,
+                        is_active=True,
+                    )
+                )
+                changed = True
+                continue
+            if (
+                user.customer_id != customer.customer_id
+                or user.branch_id != customer.branch_id
+                or user.role != UserRole.CUSTOMER.value
+            ):
+                user.customer_id = customer.customer_id
+                user.branch_id = customer.branch_id
+                user.role = UserRole.CUSTOMER.value
+                changed = True
+        if changed:
+            session.commit()
+
+
+def seed_demo_transactions():
+    """Insert a fixed set of recent ledger rows for UI demos (by transaction id).
+
+    Account balances above are the intended *current* balances; these rows are
+    history for Branch overview / transaction tables (not replayed onto balances).
+    """
+    now = datetime.now(timezone.utc)
+    # id, from, to, amount, type, description, days_ago, hours
+    demo_txns = [
+        ("demo-txn-001", None, "ACC-123", 500.0, "Deposit", "Payroll deposit", 6, 10),
+        ("demo-txn-002", "ACC-123", None, 75.0, "Withdrawal", "ATM withdrawal", 5, 14),
+        ("demo-txn-003", "ACC-123", "ACC-456", 200.0, "Transfer", "Pay Ben", 4, 11),
+        ("demo-txn-004", "ACC-123", "ACC-124", 300.0, "Transfer", "Move to savings", 3, 16),
+        ("demo-txn-005", None, "ACC-124", 100.0, "Deposit", "Interest credit", 3, 9),
+        ("demo-txn-006", "ACC-456", None, 40.0, "Withdrawal", "Cash out", 2, 13),
+        ("demo-txn-007", None, "ACC-789", 250.0, "Deposit", "BR002 deposit", 2, 10),
+        ("demo-txn-008", "ACC-789", None, 50.0, "Withdrawal", "BR002 cash", 1, 15),
+        ("demo-txn-009", None, "ACC-123", 120.0, "Deposit", "Refund", 1, 11),
+        ("demo-txn-010", "ACC-123", "ACC-456", 60.0, "Transfer", "Shared dinner", 0, 9),
+        ("demo-txn-011", None, "ACC-456", 80.0, "Deposit", "Side gig", 0, 12),
+        ("demo-txn-012", "ACC-124", None, 25.0, "Withdrawal", "Savings ATM", 0, 14),
+    ]
+
+    with SessionLocal() as session:
+        added = False
+        for txn_id, from_acct, to_acct, amount, txn_type, description, days_ago, hour in demo_txns:
+            if session.get(Transaction, txn_id) is not None:
+                continue
+            # Skip if referenced accounts were never seeded (partial DB).
+            if from_acct and session.get(Account, from_acct) is None:
+                continue
+            if to_acct and session.get(Account, to_acct) is None:
+                continue
+            ts = (now - timedelta(days=days_ago)).replace(hour=hour, minute=15, second=0, microsecond=0)
+            session.add(
+                Transaction(
+                    id=txn_id,
+                    from_account_id=from_acct,
+                    to_account_id=to_acct,
+                    amount=amount,
+                    description=description,
+                    type=txn_type,
+                    timestamp=ts,
+                )
+            )
+            added = True
+        if added:
+            session.commit()
+
+
+def seed_demo_budgets():
+    """Insert starter budgets for Aisha so the Budgets page has data."""
+    demo_budgets = [
+        ("demo-budget-groceries", "Groceries", 400.0, "monthly"),
+        ("demo-budget-rent", "Rent", 1600.0, "monthly"),
+        ("demo-budget-transport", "Transport", 150.0, "monthly"),
+    ]
+    with SessionLocal() as session:
+        aisha = _customer_by_email(session, "aisha@example.com")
+        if aisha is None:
+            return
+        added = False
+        for budget_id, category, amount, period in demo_budgets:
+            budget = session.get(BudgetORM, budget_id)
+            if budget is None:
+                session.add(
+                    BudgetORM(
+                        id=budget_id,
+                        customer_id=aisha.customer_id,
+                        category=category,
+                        amount=amount,
+                        period=period,
+                    )
+                )
+                added = True
+            elif budget.customer_id != aisha.customer_id:
+                budget.customer_id = aisha.customer_id
+                added = True
         if added:
             session.commit()
