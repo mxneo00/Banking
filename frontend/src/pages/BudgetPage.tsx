@@ -11,22 +11,36 @@ import {
   MenuItem,
   Stack,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from '@mui/material'
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/Delete'
 import SavingsIcon from '@mui/icons-material/Savings'
 
 import { createBudget, deleteBudget, fetchBudgets } from '../api/budgets'
 import { getApiErrorMessage } from '../api/client'
+import BudgetAllocationChart from '../components/BudgetAllocationChart'
 import type { Budget, BudgetPeriod } from '../types/budget'
+
+type PeriodFilter = 'all' | BudgetPeriod
 
 export default function BudgetPage() {
     const [budgets, setBudgets] = useState<Budget[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [isAddOpen, setIsAddOpen] = useState(false)
+    const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all')
+
+    const filteredBudgets = useMemo(
+        () => (periodFilter === 'all' ? budgets : budgets.filter((budget) => budget.period === periodFilter)),
+        [budgets, periodFilter],
+    )
+
+    const weeklyBudgets = useMemo(() => budgets.filter((budget) => budget.period === 'weekly'), [budgets])
+    const monthlyBudgets = useMemo(() => budgets.filter((budget) => budget.period === 'monthly'), [budgets])
 
     const loadBudgets = useCallback(() => fetchBudgets(), [])
 
@@ -118,8 +132,66 @@ export default function BudgetPage() {
       )}
 
       {!isLoading && !error && budgets.length > 0 && (
+        <>
+          <Box sx={{ mb: 2 }}>
+            <ToggleButtonGroup
+              value={periodFilter}
+              exclusive
+              size="small"
+              onChange={(_event, value: PeriodFilter | null) => {
+                if (value) setPeriodFilter(value)
+              }}
+              aria-label="Filter budgets by period"
+            >
+              <ToggleButton value="all">All</ToggleButton>
+              <ToggleButton value="weekly">Weekly</ToggleButton>
+              <ToggleButton value="monthly">Monthly</ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
+
+          {filteredBudgets.length > 0 && (
+            <Card variant="outlined" sx={{ mb: 3 }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Category allocation
+                </Typography>
+                {periodFilter === 'all' ? (
+                  <Stack direction={{ xs: 'column', md: 'row' }} spacing={4}>
+                    {weeklyBudgets.length > 0 && (
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                          Weekly
+                        </Typography>
+                        <BudgetAllocationChart budgets={weeklyBudgets} />
+                      </Box>
+                    )}
+                    {monthlyBudgets.length > 0 && (
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                          Monthly
+                        </Typography>
+                        <BudgetAllocationChart budgets={monthlyBudgets} />
+                      </Box>
+                    )}
+                  </Stack>
+                ) : (
+                  <BudgetAllocationChart budgets={filteredBudgets} />
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {filteredBudgets.length === 0 && (
+            <Alert severity="info" sx={{ mb: 3 }}>
+              No {periodFilter} budgets — try a different filter.
+            </Alert>
+          )}
+        </>
+      )}
+
+      {!isLoading && !error && filteredBudgets.length > 0 && (
         <Stack spacing={2}>
-          {budgets.map((budget) => (
+          {filteredBudgets.map((budget) => (
             <Card key={budget.id} variant="outlined">
               <CardContent
                 sx={{
