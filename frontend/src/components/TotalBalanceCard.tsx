@@ -2,7 +2,6 @@ import { Box, Card, CardContent, Chip, Stack, Typography } from '@mui/material'
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet'
 
 import type { Account, AccountType } from '../types/account'
-import AnimatedCounter from './AnimatedCounter'
 import DonutChart, { type DonutSlice } from './DonutChart'
 
 const TYPE_COLORS: Record<AccountType, string> = {
@@ -10,6 +9,10 @@ const TYPE_COLORS: Record<AccountType, string> = {
   savings: '#1b7f5a',
 }
 const FALLBACK_COLOR = '#898781'
+
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
+}
 
 export default function TotalBalanceCard({ accounts }: { accounts: Account[] }) {
   const total = accounts.reduce((sum, account) => sum + account.balance, 0)
@@ -41,7 +44,7 @@ export default function TotalBalanceCard({ accounts }: { accounts: Account[] }) 
         </Box>
 
         <Box sx={{ mb: 1.5 }}>
-          <AnimatedCounter amount={total} variant="h4" />
+          <Typography variant="h4">{formatCurrency(total)}</Typography>
         </Box>
 
         {(inactiveCount > 0 || overdrawnCount > 0 || atMinimumCount > 0) && (

@@ -264,6 +264,9 @@ export default function StaffDashboardPage() {
             <Button component={RouterLink} to="/transactions" variant="contained">
               Open full ledger
             </Button>
+            <Button component={RouterLink} to="/transfers" variant="outlined">
+              Transfer between accounts
+            </Button>
             <Button component={RouterLink} to="/analytics" variant="outlined">
               Branch overview
             </Button>

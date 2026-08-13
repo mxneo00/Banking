@@ -8,6 +8,7 @@ import InsightsIcon from '@mui/icons-material/Insights'
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance'
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale'
+import SwapHorizIcon from '@mui/icons-material/SwapHoriz'
 import Menu from '@mui/icons-material/Menu'
 import Brightness4Icon from '@mui/icons-material/Brightness4'
 import Brightness7Icon from '@mui/icons-material/Brightness7'
@@ -46,6 +47,12 @@ const navItems: NavItem[] = [
     icon: <PointOfSaleIcon />,
     staffOnly: true,
     roles: ['teller', 'admin'],
+  },
+  {
+    label: 'Transfers',
+    path: '/transfers',
+    icon: <SwapHorizIcon />,
+    staffOnly: true,
   },
   { label: 'Branch overview', path: '/analytics', icon: <InsightsIcon />, staffOnly: true },
   { label: 'Transactions', path: '/transactions', icon: <ReceiptLongIcon />, staffOnly: true },
