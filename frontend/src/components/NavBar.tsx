@@ -33,6 +33,7 @@ type NavItem = {
 const navItems: NavItem[] = [
   { label: 'Dashboard', path: '/', icon: <DashboardIcon />, customerOnly: true },
   { label: 'Accounts', path: '/accounts', icon: <AccountBalanceIcon />, customerOnly: true },
+  { label: 'Send money', path: '/send', icon: <SwapHorizIcon />, customerOnly: true },
   { label: 'Budgets', path: '/budgets', icon: <SavingsIcon />, customerOnly: true },
   {
     label: 'Transaction history',

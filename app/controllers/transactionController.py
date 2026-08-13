@@ -6,8 +6,9 @@ Access rules (see security/dependencies.py for the mechanics):
     teller acts on their behalf, per "TELLER: deposit/withdraw on behalf
     of customers."
   - POST /transactions/transfer                     : the owning customer
-    (their own from_account only), or teller/admin transferring on anyone's
-    behalf.
+    (their own from_account only), or any staff member transferring on
+    anyone's behalf. Destination may be any account -- customers are
+    allowed to send *to* accounts they do not own.
   - GET  /transactions, /transactions/{id}           : a customer sees only
     transactions touching their own account(s); staff sees everything.
 """
@@ -62,7 +63,11 @@ def transfer_money(
     db: Session = Depends(get_db),
     current_user: UserORM = Depends(get_current_user),
 ):
-    """Process a money transfer between two accounts and return the saved record."""
+    """Process a money transfer between two accounts and return the saved record.
+
+    Authorization is on the source only: a customer must own from_account_id.
+    to_account_id is not ownership-checked so customers can pay other people.
+    """
     source_account = _get_account_or_404(db, payload.from_account_id)
     ensure_self_or_staff(current_user, source_account.customer_id)
     return transactionService.process_transfer(

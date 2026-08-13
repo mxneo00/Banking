@@ -12,7 +12,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from controllers.transactionController import router as transaction_router
-from models.database import SessionLocal, UserORM
+from models.database import SessionLocal, UserORM, UserRole
+from security.passwords import hash_password
 from services import authService
 
 
@@ -40,6 +41,49 @@ def client():
     test_client = TestClient(app)
     test_client.headers.update({"Authorization": f"Bearer {access_token}"})
     return test_client
+
+
+def _authenticated_client(email: str, password: str, **user_fields) -> TestClient:
+    """Mint a user, log them in, and return a TestClient with their Bearer token."""
+    with SessionLocal() as db:
+        db.query(UserORM).filter(UserORM.email == email).delete()
+        db.commit()
+        db.add(
+            UserORM(
+                email=email,
+                hashed_password=hash_password(password),
+                **user_fields,
+            )
+        )
+        db.commit()
+        access_token, _ = authService.login(db, email, password)
+
+    app = FastAPI()
+    app.include_router(transaction_router)
+    test_client = TestClient(app)
+    test_client.headers.update({"Authorization": f"Bearer {access_token}"})
+    return test_client
+
+
+@pytest.fixture
+def customer_client():
+    """Customer who owns ACC-123 (CUST-01), not ACC-456 (CUST-02)."""
+    return _authenticated_client(
+        "txn-customer@example.com",
+        "customerpassword",
+        role=UserRole.CUSTOMER.value,
+        customer_id="CUST-01",
+    )
+
+
+@pytest.fixture
+def teller_client():
+    return _authenticated_client(
+        "txn-teller@example.com",
+        "tellerpassword",
+        role=UserRole.TELLER.value,
+        branch_id="BR001",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -203,3 +247,46 @@ class TestListTransactionsEndpoint:
         results = response.json()
         assert len(results) == 1
         assert results[0]["type"] == "Deposit"
+
+
+# ---------------------------------------------------------------------------
+# RBAC — customer vs staff on transfers / cash desk
+# ---------------------------------------------------------------------------
+
+class TestTransferRbac:
+    def test_customer_can_send_from_own_account_to_another_customer(self, customer_client):
+        response = customer_client.post(
+            "/api/v1/transactions/transfer",
+            json={"from_account_id": "ACC-123", "to_account_id": "ACC-456", "amount": 25.0},
+        )
+        assert response.status_code == 201
+        body = response.json()
+        assert body["from_account_id"] == "ACC-123"
+        assert body["to_account_id"] == "ACC-456"
+
+    def test_customer_cannot_send_from_someone_elses_account(self, customer_client):
+        response = customer_client.post(
+            "/api/v1/transactions/transfer",
+            json={"from_account_id": "ACC-456", "to_account_id": "ACC-123", "amount": 10.0},
+        )
+        assert response.status_code == 403
+
+    def test_customer_cannot_deposit_or_withdraw(self, customer_client):
+        deposit = customer_client.post(
+            "/api/v1/transactions",
+            json={"to_account": "ACC-123", "amount": 10.0, "transaction_type": "Deposit"},
+        )
+        withdrawal = customer_client.post(
+            "/api/v1/transactions",
+            json={"from_account": "ACC-123", "amount": 10.0, "transaction_type": "Withdrawal"},
+        )
+        assert deposit.status_code == 403
+        assert withdrawal.status_code == 403
+
+    def test_teller_can_transfer_from_any_account(self, teller_client):
+        response = teller_client.post(
+            "/api/v1/transactions/transfer",
+            json={"from_account_id": "ACC-456", "to_account_id": "ACC-123", "amount": 15.0},
+        )
+        assert response.status_code == 201
+        assert response.json()["from_account_id"] == "ACC-456"

@@ -7,7 +7,8 @@
  * RBAC note (enforced on the backend, not repeated here):
  *   - createTransaction (deposit/withdraw) : teller/admin only
  *   - transferMoney                        : the owning customer (their own
- *                                             from_account_id only), or staff
+ *                                             from_account_id only; destination
+ *                                             may be anyone's), or staff
  *   - listTransactions, getTransaction     : a customer sees only transactions
  *                                             touching their own account(s);
  *                                             staff sees everything
