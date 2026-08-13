@@ -1,9 +1,29 @@
 # Bank Management System
 
 A RESTful banking API built with FastAPI, backed by Postgres, with JWT
-authentication and role-based access control. Built in phases as part of
+authentication and role-based access control, plus a React + TypeScript
+frontend for both customers and staff. Built in phases as part of
 a team training workshop — the phase history is below the current-state
 summary.
+
+---
+
+## Table of Contents
+
+* [Current State](#current-state)
+  * [Stack](#stack)
+  * [Architecture](#architecture)
+  * [API Overview](#api-overview)
+  * [Running Locally](#running-locally)
+  * [Frontend](#frontend)
+  * [Seed / Demo Login Credentials](#seed--demo-login-credentials)
+  * [Running Tests](#running-tests)
+  * [Known Gaps](#known-gaps)
+* [Phase History](#phase-history)
+  * [Phase 02 — Backend REST API (CRUD, MVC Flow)](#phase-02--backend-rest-api-crud-mvc-flow)
+  * [Database Integration — Postgres](#database-integration--postgres)
+  * [Auth & Security](#auth--security)
+  * [Testing — Unit Tests & Postman (in progress)](#testing--unit-tests--postman-in-progress)
 
 ---
 
@@ -15,6 +35,7 @@ summary.
 * **Database:** Postgres, via SQLAlchemy ORM (`psycopg` driver)
 * **Auth:** JWT (access + refresh tokens), `bcrypt` password hashing, role-based access control
 * **Testing:** `pytest`
+* **Frontend:** React 19 + TypeScript, Vite, MUI, React Router, Axios (see [Frontend](#frontend) below)
 
 ### Architecture
 
@@ -27,12 +48,14 @@ app/
 │   ├── authController.py
 │   ├── customerController.py
 │   ├── accountController.py
-│   └── transactionController.py
+│   ├── transactionController.py
+│   └── budgetController.py
 ├── services/            # business logic; talks to Postgres via a SQLAlchemy Session
 │   ├── authService.py
 │   ├── customerService.py
 │   ├── accountService.py
-│   └── transactionService.py
+│   ├── transactionService.py
+│   └── budgetService.py
 ├── security/             # password hashing + JWT creation/decoding, framework-agnostic
 │   ├── passwords.py
 │   ├── tokens.py
@@ -62,6 +85,7 @@ app/
 | **Customers** (`/api/v1/customers`) | `POST /`, `GET /`, `GET /{customer_id}`, `PUT /{customer_id}`, `DELETE /{customer_id}` (deactivate) |
 | **Accounts** (`/api/v1/accounts`) | `POST /` (open savings/checking), `GET /{account_number}` |
 | **Transactions** (`/api/v1/transactions`) | `POST /` (deposit/withdraw), `POST /transfer`, `GET /`, `GET /{transaction_id}` |
+| **Budgets** (`/api/v1/budgets`) | `POST /` (create), `GET /` (list, supports period filtering), `PUT /{budget_id}`, `DELETE /{budget_id}` |
 
 Every endpoint except `/api/v1/auth/register` and `/api/v1/auth/login`
 requires a Bearer access token. Four roles exist: `customer`, `teller`,
@@ -86,8 +110,59 @@ staff roles can act on any customer's.
    ```
    Then visit `http://127.0.0.1:8000/docs` for interactive Swagger UI.
    On first startup, the app creates its tables and seeds demo customers,
-   accounts, and one admin login (`admin@bank.local` / `admin123` —
-   change this before using this project anywhere beyond local dev).
+   accounts, and staff logins — see [Seed / Demo Login Credentials](#seed--demo-login-credentials)
+   below (change these before using this project anywhere beyond local dev).
+
+### Frontend
+
+A React + TypeScript single-page app under [`frontend/`](frontend/), built
+with Vite and MUI, serving both the customer portal and the staff portal
+from one app (route access is gated by role — see `App.tsx`).
+
+```
+frontend/src/
+├── api/            # axios calls per resource (auth, customers, accounts, transactions, budgets)
+├── components/     # route guards (GuestRoute, ProtectedRoute, CustomerRoute, StaffRoute) + shared UI
+├── context/         # AuthContext — current user/session state
+├── layouts/          # AppLayout (shared nav/shell for authenticated routes)
+├── pages/
+│   ├── LoginPage.tsx / RegisterPage.tsx      # customer self-service auth
+│   ├── DashboardPage.tsx / AccountPage.tsx    # customer: account overview + detail
+│   ├── BudgetPage.tsx                          # customer: budget CRUD + allocation chart, period filtering
+│   ├── StaffDashboardPage.tsx                  # staff landing page
+│   ├── CashDeskPage.tsx                        # staff: deposits/withdrawals at a branch desk
+│   ├── StaffTransactionsPage.tsx               # staff: transaction lookup across customers
+│   └── AnalyticsPage.tsx                       # staff: branch/staff analytics
+├── theme/          # MUI theme
+└── types/          # request/response types, split by resource
+```
+
+**Running it** (from `frontend/`):
+```
+npm install
+npm run dev
+```
+Then visit `http://localhost:5173`. The dev server expects the backend
+API to be running at `http://127.0.0.1:8000` (see `src/api/client.ts`);
+the backend's `CORS_ORIGINS` must include `http://localhost:5173` for
+requests to succeed (already the default in `.env.example`).
+
+### Seed / Demo Login Credentials
+
+On first startup (empty `users` table), the backend seeds one admin plus
+a teller and branch manager so every role can be exercised immediately
+from the frontend's `/login` page — the dashboard shown after login is
+based on the account's role. **Change or remove these before deploying
+anywhere beyond local dev.**
+
+| Role | Email | Password | Branch |
+|---|---|---|---|
+| Admin | `admin@bank.local` | `admin123` | — |
+| Teller | `teller@bank.local` | `teller123` | `BR001` |
+| Branch Manager | `manager@bank.local` | `manager123` | `BR001` |
+
+Customers aren't seeded — register one via `/register` (self-signup) or
+`POST /api/v1/auth/register`.
 
 ### Running Tests
 
