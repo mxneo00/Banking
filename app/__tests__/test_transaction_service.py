@@ -10,12 +10,29 @@ import pytest
 from fastapi import HTTPException
 
 import services.transactionService as transactionService
-from models.database import Account as AccountORM, SessionLocal
+from models.database import Account as AccountORM, SessionLocal, TransactionType
 
 
 def _balance(account_number):
     with SessionLocal() as session:
         return session.get(AccountORM, account_number).balance
+
+
+class TestTransactionType:
+    """TransactionType lives in models/database.py (it types Transaction.type
+    there); covered here rather than a dedicated file since transactionService
+    is its only real consumer."""
+
+    @pytest.mark.parametrize(
+        "member, expected_value",
+        [
+            (TransactionType.DEPOSIT, "Deposit"),
+            (TransactionType.WITHDRAWAL, "Withdrawal"),
+            (TransactionType.TRANSFER, "Transfer"),
+        ],
+    )
+    def test_member_values(self, member, expected_value):
+        assert member.value == expected_value
 
 
 class TestCreateTransactionDeposit:
@@ -83,6 +100,23 @@ class TestCreateTransactionWithdrawal:
         assert exc_info.value.status_code == 400
         assert _balance("ACC-456") == 250.0
 
+    def test_allows_withdrawal_into_overdraft(self):
+        # ACC-456: balance 250, overdraft_limit 500 -> up to 750 available.
+        result = transactionService.create_transaction({
+            "from_account": "ACC-456", "amount": 400.0, "transaction_type": "Withdrawal",
+        })
+        assert result["type"] == "Withdrawal"
+        assert _balance("ACC-456") == -150.0
+
+    def test_rejects_withdrawal_past_overdraft_limit(self):
+        # Available = 250 + 500 = 750; 751 must fail.
+        with pytest.raises(HTTPException) as exc_info:
+            transactionService.create_transaction({
+                "from_account": "ACC-456", "amount": 751.0, "transaction_type": "Withdrawal",
+            })
+        assert exc_info.value.status_code == 400
+        assert _balance("ACC-456") == 250.0
+
 
 class TestCreateTransactionTransfer:
     def test_delegates_to_process_transfer(self):
@@ -146,6 +180,20 @@ class TestProcessTransfer:
         with pytest.raises(HTTPException) as exc_info:
             transactionService.process_transfer("ACC-456", "ACC-123", 99999.0)
         assert exc_info.value.status_code == 400
+
+    def test_allows_transfer_into_overdraft(self):
+        # ACC-456 can go to -150 (250 - 400) within its 500 overdraft.
+        txn = transactionService.process_transfer("ACC-456", "ACC-123", 400.0)
+        assert txn["type"] == "Transfer"
+        assert _balance("ACC-456") == -150.0
+        assert _balance("ACC-123") == 5400.0
+
+    def test_rejects_transfer_past_overdraft_limit(self):
+        with pytest.raises(HTTPException) as exc_info:
+            transactionService.process_transfer("ACC-456", "ACC-123", 751.0)
+        assert exc_info.value.status_code == 400
+        assert _balance("ACC-456") == 250.0
+        assert _balance("ACC-123") == 5000.0
 
     def test_insufficient_funds_does_not_record_a_transaction_or_move_balances(self):
         try:

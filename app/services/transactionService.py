@@ -13,8 +13,7 @@ from typing import List, Optional
 from fastapi import HTTPException, status
 from sqlalchemy import select
 
-from models.database import Account as AccountORM, SessionLocal, Transaction as TransactionORM
-from models.domain import TransactionType
+from models.database import Account as AccountORM, SessionLocal, Transaction as TransactionORM, TransactionType
 
 
 def _serialize(transaction: TransactionORM) -> dict:
@@ -30,6 +29,26 @@ def _serialize(transaction: TransactionORM) -> dict:
     }
 
 
+def _debit_floor(account: AccountORM) -> float:
+    """Lowest balance allowed after a debit.
+
+    Accounts with an ``overdraft_limit`` may go negative down to
+    ``-overdraft_limit``. Otherwise the balance cannot go below zero.
+    """
+    if account.overdraft_limit is not None:
+        return -float(account.overdraft_limit)
+    return 0.0
+
+
+def _ensure_can_debit(account: AccountORM, amount: float) -> None:
+    """Raise 400 if debiting ``amount`` would breach overdraft protection."""
+    if account.balance - amount < _debit_floor(account):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Insufficient funds.",
+        )
+
+
 def create_transaction(txn_data: dict) -> dict:
     """Create a transaction and apply its real balance effect, dispatched by
     transaction_type. Each type needs a different subset of accounts -- you
@@ -42,6 +61,7 @@ def create_transaction(txn_data: dict) -> dict:
     Expects the shape of TransactionCreate: from_account, to_account,
     amount, transaction_type.
     """
+    # Validate the type string first -- everything else below branches on it.
     try:
         tx_type = TransactionType(txn_data.get("transaction_type"))
     except ValueError:
@@ -55,10 +75,15 @@ def create_transaction(txn_data: dict) -> dict:
     if amount is None or amount <= 0:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="amount must be greater than 0.")
 
+    # Accept both the REST-ish `from_account`/`to_account` keys and the
+    # `_id`-suffixed ones so this works whether the caller sent a
+    # TransactionCreate payload or a hand-built dict (e.g. from a test).
     from_account_id = txn_data.get("from_account") or txn_data.get("from_account_id")
     to_account_id = txn_data.get("to_account") or txn_data.get("to_account_id")
     description = txn_data.get("description")
 
+    # Dispatch on type, checking that only the accounts that type needs were
+    # actually supplied (see the docstring's table above).
     if tx_type is TransactionType.TRANSFER:
         if not from_account_id or not to_account_id:
             raise HTTPException(
@@ -94,10 +119,13 @@ def _apply_single_account_transaction(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Account '{account_id}' is inactive.")
 
         if credit:
+            # Deposits always succeed once the account itself checks out --
+            # there's no upper bound on a balance.
             account.balance += amount
         else:
-            if account.balance < amount:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Insufficient funds.")
+            # Withdrawals must respect overdraft protection; raises before
+            # the balance is touched if the debit would breach the floor.
+            _ensure_can_debit(account, amount)
             account.balance -= amount
 
         transaction = TransactionORM(
@@ -118,6 +146,8 @@ def _apply_single_account_transaction(
 def get_transactions(start_date: Optional[str] = None, transaction_type: Optional[str] = None) -> List[dict]:
     """Return transactions, optionally filtered by start date (YYYY-MM-DD) or type."""
     with SessionLocal() as session:
+        # Start unfiltered and narrow the query with each optional param
+        # supplied -- both filters are independent and can combine.
         stmt = select(TransactionORM)
 
         if transaction_type:
@@ -164,8 +194,7 @@ def process_transfer(
         if not from_account.is_active or not to_account.is_active:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot transfer using an inactive account.")
 
-        if from_account.balance < amount:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Insufficient funds in the origin account.")
+        _ensure_can_debit(from_account, amount)
 
         # Both balance updates and the transaction insert commit together --
         # if anything above raised, nothing here has been written yet.

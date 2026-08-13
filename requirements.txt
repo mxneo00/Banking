@@ -6,3 +6,12 @@ sqlalchemy>=2.0
 psycopg[binary]>=3.1
 alembic>=1.13
 python-dotenv>=1.0
+
+# Auth / Security (JWT + password hashing)
+# NOTE: using `bcrypt` directly rather than passlib -- passlib is
+# unmaintained and breaks on bcrypt>=4.1 (it probes a removed
+# `__about__.__version__` attribute). PyJWT is the simplest, actively
+# maintained JWT library for our use case (symmetric HS256 signing --
+# we don't need the asymmetric/JWK machinery python-jose adds).
+bcrypt>=4.1
+pyjwt>=2.9

@@ -9,14 +9,20 @@ This file wires the three layers together:
 and is the one place that knows how to turn a domain exception (or a failed request validation) into an HTTP status code, so no individual route has to think about that itself.
 """
 
+import os
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from controllers.accountController import router as account_router
+from controllers.authController import router as auth_router
 from controllers.customerController import router as customer_router
 from controllers.transactionController import router as transaction_router
+from controllers.budgetController import router as budget_router
 
 from models.exceptions import (
     BankingError,
@@ -28,21 +34,41 @@ from models.exceptions import (
 
 app = FastAPI(title="Bank Management API")
 
-#app.include_router(branch_router)
+#app.include_router(branch_router)  # NOTE: branch_router doesn't exist -- no branchController.py in this project
+app.include_router(auth_router)
 app.include_router(customer_router)
 app.include_router(account_router)
 app.include_router(transaction_router)
+app.include_router(budget_router)
+
+# CORS configuration: allow requests from the frontend (e.g., Vite dev server at localhost:5173)
+# CORS_ORIGINS is a comma-separated list of allowed origins, defaulting to http://localhost:5173 if not set in the environment.
+_cors_origins = [
+    origin.strip()
+    for origin in os.environ.get("CORS_ORIGINS", "http://localhost:5173").split(",")
+    if origin.strip()
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,  # Adjust this to your frontend's origin in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.on_event("startup")
 def on_startup():
-    """Create Postgres tables, seed demo accounts, then in-memory demo data."""
-    from models.database import init_db, seed_demo_accounts
+    """Create Postgres tables and seed the local demo dataset.
+
+    Order is handled inside seed_all_demo_data() (customers before accounts,
+    accounts before transactions, etc.). Seeds are idempotent by natural key
+    so restarting the API fills in missing demo rows without wiping local data.
+    """
+    from models.database import init_db, seed_all_demo_data
 
     init_db()
-    seed_demo_accounts()
-
-    from seedData import seed_demo_data
-    seed_demo_data()
+    seed_all_demo_data()
 
 """ 
 Error handlers: map each domain exception (and FastAPI's own request validation errors) to the HTTP status code it should produce.
