@@ -4,7 +4,7 @@ import { fetchAccounts } from '../api/accounts'
 import { getApiErrorMessage } from '../api/client'
 import { fetchCustomer } from '../api/customers'
 import { listTransactions } from '../api/transactions'
-import ProfileCard from '../components/ProfileCard'
+import BalanceTrendChart from '../components/BalanceTrendChart'
 import RecentAccountsPreview from '../components/RecentAccountsPreview'
 import RecentTransactionsPreview from '../components/RecentTransactionsPreview'
 import TotalBalanceCard from '../components/TotalBalanceCard'
@@ -118,7 +118,7 @@ export default function DashboardPage() {
           </Grid>
 
           <Grid size={{ xs: 12, md: 6 }}>
-            {user && <ProfileCard customer={customer} user={user} />}
+            <BalanceTrendChart accounts={accounts} transactions={transactions} />
           </Grid>
 
           <Grid size={{ xs: 12, md: 6 }}>

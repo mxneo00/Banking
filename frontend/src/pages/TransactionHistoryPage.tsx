@@ -17,6 +17,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Alert,
   Box,
+  Button,
   Chip,
   CircularProgress,
   MenuItem,
@@ -34,12 +35,14 @@ import {
 } from '@mui/material'
 import { alpha } from '@mui/material/styles'
 import CheckIcon from '@mui/icons-material/Check'
+import DownloadIcon from '@mui/icons-material/Download'
 
 import { getApiErrorMessage } from '../api/client'
 import { listTransactions } from '../api/transactions'
 import ColumnFilterHeader from '../components/ColumnFilterHeader'
 import FuzzySearchField from '../components/FuzzySearchField'
 import type { Transaction, TransactionType } from '../types/transaction'
+import { downloadCsv, transactionsToCsv } from '../utils/csvExport'
 import { fuzzyMatch } from '../utils/fuzzyMatch'
 import { TYPE_COLOR, formatTimestamp } from '../utils/transactionDisplay'
 
@@ -126,6 +129,11 @@ export default function TransactionHistoryPage() {
 
   const paged = filteredAndSorted.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
 
+  function handleExportCsv() {
+    const today = new Date().toISOString().slice(0, 10)
+    downloadCsv(`transaction-history-${today}.csv`, transactionsToCsv(filteredAndSorted))
+  }
+
   return (
     <Box>
       <Typography variant="h4" gutterBottom>
@@ -136,16 +144,27 @@ export default function TransactionHistoryPage() {
         sort or filter it.
       </Typography>
 
-      <FuzzySearchField
-        label="Search descriptions"
-        placeholder="e.g. rent, groceries…"
-        value={descriptionSearch}
-        onChange={(value) => {
-          setDescriptionSearch(value)
-          resetPage()
-        }}
-        sx={{ minWidth: 240, mb: 2 }}
-      />
+      <Stack direction="row" spacing={2} sx={{ alignItems: 'center', mb: 2, flexWrap: 'wrap' }}>
+        <FuzzySearchField
+          label="Search descriptions"
+          placeholder="e.g. rent, groceries…"
+          value={descriptionSearch}
+          onChange={(value) => {
+            setDescriptionSearch(value)
+            resetPage()
+          }}
+          sx={{ minWidth: 240 }}
+        />
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<DownloadIcon />}
+          onClick={handleExportCsv}
+          disabled={filteredAndSorted.length === 0}
+        >
+          Export CSV
+        </Button>
+      </Stack>
 
       {loading && (
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 2 }}>
