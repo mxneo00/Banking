@@ -395,7 +395,7 @@ function TransferForm({
           value={toAccountId}
           onInputChange={(_event, newValue) => setToAccountId(newValue)}
           disabled={isSubmitting}
-          renderOptions={(props, option) => {
+          renderOption={(props, option) => {
             const match = otherAccounts.find((account) => account.account_number === option)
             return (
               <Box component="li" {...props} key={option}>
