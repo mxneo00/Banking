@@ -13,8 +13,7 @@ from typing import List, Optional
 from fastapi import HTTPException, status
 from sqlalchemy import select
 
-from models.database import Account as AccountORM, SessionLocal, Transaction as TransactionORM
-from models.domain import TransactionType
+from models.database import Account as AccountORM, SessionLocal, Transaction as TransactionORM, TransactionType
 
 
 def _serialize(transaction: TransactionORM) -> dict:

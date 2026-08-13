@@ -64,19 +64,19 @@ app/
 ├── models/
 │   ├── database.py       # SQLAlchemy models + engine/session — the real source of truth
 │   ├── schemas.py         # Pydantic request/response models
-│   ├── exceptions.py
-│   ├── domain.py          # legacy in-memory domain classes — see note below
-│   └── repository.py      # legacy in-memory data layer — not used by the running app; see note below
+│   └── exceptions.py
 ├── __tests__/
-├── seedData.py
 └── main.py
 ```
 
-> **Note on `domain.py` / `repository.py`:** these were the original
-> in-memory storage layer from the project's first phase. Every resource
-> (customers, accounts, transactions, users) has since moved to Postgres
-> via `models/database.py`, and nothing in the live app calls into these
-> two files anymore. Kept for now as reference rather than deleted outright.
+> **Note on the original in-memory layer:** this project started with a
+> plain in-memory storage layer (`models/domain.py`'s Customer/Account/
+> Branch classes plus a `models/repository.py` data layer) and demo seeding
+> in `seedData.py`. Every resource has since moved to Postgres via
+> `models/database.py`, and nothing in the live app called into any of
+> those three files anymore, so all three were removed. `TransactionType`
+> (the one piece of `domain.py` still in active use) moved into
+> `database.py` alongside the `Transaction` ORM model it types.
 
 ### API Overview
 
@@ -123,19 +123,22 @@ from one app (route access is gated by role — see `App.tsx`).
 ```
 frontend/src/
 ├── api/            # axios calls per resource (auth, customers, accounts, transactions, budgets)
-├── components/     # route guards (GuestRoute, ProtectedRoute, CustomerRoute, StaffRoute) + shared UI
-├── context/         # AuthContext — current user/session state
+├── components/     # route guards (GuestRoute, ProtectedRoute, CustomerRoute, StaffRoute,
+│                   # RoleHomeRedirect) + shared UI (charts, cards, cash desk panel, nav bar, ...)
+├── context/         # AuthContext (session state) + ThemeModeContext (light/dark mode, persisted)
 ├── layouts/          # AppLayout (shared nav/shell for authenticated routes)
 ├── pages/
 │   ├── LoginPage.tsx / RegisterPage.tsx      # customer self-service auth
 │   ├── DashboardPage.tsx / AccountPage.tsx    # customer: account overview + detail
+│   ├── TransactionHistoryPage.tsx              # customer: sortable/filterable ledger, CSV export
 │   ├── BudgetPage.tsx                          # customer: budget CRUD + allocation chart, period filtering
 │   ├── StaffDashboardPage.tsx                  # staff landing page
 │   ├── CashDeskPage.tsx                        # staff: deposits/withdrawals at a branch desk
 │   ├── StaffTransactionsPage.tsx               # staff: transaction lookup across customers
 │   └── AnalyticsPage.tsx                       # staff: branch/staff analytics
 ├── theme/          # MUI theme
-└── types/          # request/response types, split by resource
+├── types/          # request/response types, split by resource
+└── utils/          # fuzzy search, CSV export, shared transaction display helpers
 ```
 
 **Running it** (from `frontend/`):
@@ -171,10 +174,18 @@ From the project root:
 ```
 pytest
 ```
-Tests that touch the database (most service-layer tests) require Postgres
-to be running and reachable via `DATABASE_URL`. A few pure-logic test
-files (password hashing, JWT creation) are marked `@pytest.mark.no_db` and
-skip the database fixture entirely.
+Every test in the suite hits a real Postgres database via a shared,
+autouse `pytest` fixture (`app/__tests__/conftest.py`) that resets
+customers/accounts/transactions/users/budgets before each test. That
+fixture deliberately does **not** use the same database as the running
+app — it redirects `DATABASE_URL` to a `_test`-suffixed database (e.g.
+`banking` → `banking_test`) derived from your `.env`, so running the suite
+never touches real app data. Create that database once before running
+tests for the first time:
+```sql
+CREATE DATABASE banking_test;
+```
+(on the same Postgres server/credentials as your regular `DATABASE_URL`).
 
 ### Known Gaps
 
@@ -205,9 +216,11 @@ Repository (MVC-style) to handle CRUD for the Bank Management System.
 * CRUD for customers, accounts, branches, and transactions.
 * Request validation via Pydantic schemas + FastAPI, rejecting malformed
   requests before a route function runs.
-* Storage was `models/repository.py` — a single in-memory Python
-  dictionary per resource, explicitly designed to be swapped for a real
-  database later without changing `services/` or `controllers/`.
+* Storage was originally `models/repository.py` — a single in-memory
+  Python dictionary per resource, explicitly designed to be swapped for a
+  real database later without changing `services/` or `controllers/`. That
+  swap has since happened (see the note on the in-memory layer above); it
+  was removed once nothing called it anymore.
 
 ### Database Integration — Postgres
 
@@ -263,11 +276,17 @@ Repository (MVC-style) to handle CRUD for the Bank Management System.
 automated unit tests and API-level verification.
 
 * Unit tests for `authService` (registration, login, token refresh,
-  logout, staff creation) hit a real Postgres test database, reset and
-  reseeded between tests via a shared `pytest` fixture.
-* Pure-logic tests for password hashing and JWT creation/decoding run
-  without a database at all, via a `@pytest.mark.no_db` opt-out of that
-  fixture.
+  logout, staff creation), `accountService`, and `transactionService` (plus
+  its controller) hit a real Postgres test database, reset and reseeded
+  between tests via a shared, autouse `pytest` fixture.
+* That fixture was originally pointed at the same database as the running
+  app; a later pass redirected it to a dedicated `_test`-suffixed database
+  after stray demo/manual-testing data in the shared database started
+  causing foreign-key failures during test cleanup (see
+  [Running Tests](#running-tests) above).
+* Password hashing (`security/passwords.py`) and JWT creation/decoding
+  (`security/tokens.py`) don't have dedicated unit tests yet — they're
+  only exercised indirectly through the `authService` tests above.
 * Postman collection (environment variables, request scripts, response
   assertions) — not yet built.
 
@@ -278,10 +297,15 @@ and staff sides of the API.
 
 * Vite + MUI scaffold, with `AuthContext` and route guards
   (`GuestRoute`/`ProtectedRoute`/`CustomerRoute`/`StaffRoute`) gating
-  access by login state and role.
-* Customer side: login/registration, account dashboard and detail pages,
-  account opening, transfers (with recipient autocomplete), and budget
-  CRUD with an allocation chart and period filtering.
+  access by login state and role, plus a persisted light/dark theme
+  toggle (`ThemeModeContext`) independent of auth state.
+* Customer side: login/registration, an account dashboard (animated
+  balance total, a derived balance-trend chart reconstructed from
+  transaction history since the backend has no historical-balance table,
+  recent-accounts/transactions previews) and detail pages, account
+  opening, transfers (with recipient autocomplete), a sortable/filterable
+  transaction history page with CSV export, and budget CRUD with an
+  allocation chart and period filtering.
 * Staff side: a role-aware login redirect, staff dashboard, a cash desk
   page for in-branch deposits/withdrawals, a cross-customer transaction
   lookup page, and a branch/staff analytics page.

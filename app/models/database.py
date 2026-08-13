@@ -1,8 +1,9 @@
 """SQLAlchemy setup + ORM models for Postgres persistence.
 
-Accounts and transactions live here. Account opening/lookup go through
-accountService; deposits/withdrawals/transfers go through transactionService.
-Customers and branches may still use the in-memory repository for now.
+Every resource (customers, accounts, transactions, users, budgets) is
+Postgres-backed via the ORM models in this file. Account opening/lookup go
+through accountService; deposits/withdrawals/transfers go through
+transactionService.
 
 Copy .env.example to .env in the project root (and adjust credentials if
 yours differ) before running anything that imports this module --
@@ -100,6 +101,16 @@ class Transaction(Base):
     description = Column(String, nullable=True)
     type = Column(String, nullable=False)
     timestamp = Column(DateTime(timezone=True), nullable=False)
+
+
+class TransactionType(Enum):
+    """Valid values for Transaction.type above -- also what
+    services/transactionService.py validates an incoming
+    `transaction_type` string against (see its create_transaction)."""
+
+    DEPOSIT = "Deposit"
+    WITHDRAWAL = "Withdrawal"
+    TRANSFER = "Transfer"
 
 
 class UserRole(Enum):

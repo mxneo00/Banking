@@ -10,12 +10,29 @@ import pytest
 from fastapi import HTTPException
 
 import services.transactionService as transactionService
-from models.database import Account as AccountORM, SessionLocal
+from models.database import Account as AccountORM, SessionLocal, TransactionType
 
 
 def _balance(account_number):
     with SessionLocal() as session:
         return session.get(AccountORM, account_number).balance
+
+
+class TestTransactionType:
+    """TransactionType lives in models/database.py (it types Transaction.type
+    there); covered here rather than a dedicated file since transactionService
+    is its only real consumer."""
+
+    @pytest.mark.parametrize(
+        "member, expected_value",
+        [
+            (TransactionType.DEPOSIT, "Deposit"),
+            (TransactionType.WITHDRAWAL, "Withdrawal"),
+            (TransactionType.TRANSFER, "Transfer"),
+        ],
+    )
+    def test_member_values(self, member, expected_value):
+        assert member.value == expected_value
 
 
 class TestCreateTransactionDeposit:

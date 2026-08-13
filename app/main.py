@@ -64,9 +64,9 @@ def on_startup():
     Order matters: customers before accounts (Account.customer_id is a real
     FK onto customers.customer_id), and the admin seed is independent but
     grouped here for the same "get a working demo state on first run"
-    reason. seedData.py's in-memory repository seeding was retired:
-    customerService/accountService are fully Postgres-backed now, so
-    nothing reads that in-memory store anymore.
+    reason. The project's original in-memory seeding (seedData.py, backed by
+    models/repository.py) has been removed: customerService/accountService
+    are fully Postgres-backed now, so nothing ever read that in-memory store.
     """
     from models.database import init_db, seed_demo_accounts, seed_demo_admin, seed_demo_customers, seed_demo_staff
 

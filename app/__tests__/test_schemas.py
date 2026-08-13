@@ -179,7 +179,8 @@ class TestCustomerUpdate:
 
     def test_note_schema_does_not_enforce_non_blank_strings(self):
         """CustomerUpdate has no validator, so a blank name/email round-trips
-        as-is; app/models/domain.py's require_text() is the layer that
-        actually rejects blank values (see test_domain.py)."""
+        as-is -- customerService.update_customer only checks `is not None`,
+        not blankness, so a whitespace-only value reaches the database
+        unmodified. Documented here as current behavior, not a guarantee."""
         update = CustomerUpdate(name="   ")
         assert update.name == "   "
