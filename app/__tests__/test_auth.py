@@ -1,43 +1,21 @@
 """Tests for app/services/authService.py and security/dependencies.py.
 
-These hit the real Postgres database (see conftest.py's autouse fixture for
-customers/accounts/transactions setup) -- `docker compose up -d db` must be
-running before these tests execute.
+These hit a real Postgres database -- see conftest.py's autouse fixture,
+which resets customers/accounts/transactions/users/budgets before every test
+and redirects DATABASE_URL at a dedicated `_test` database so this never
+touches real app data. A local Postgres server must be reachable before
+these tests execute.
 """
 
 import pytest
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 
-from models.database import SessionLocal, UserORM, UserRole
+from models.database import SessionLocal, UserRole
 from models.exceptions import DuplicateError
 from security.dependencies import get_current_user, is_staff
 from security.tokens import decode_token
 from services import authService
-
-
-def _clear_users():
-    with SessionLocal() as session:
-        session.query(UserORM).delete()
-        session.commit()
-
-
-@pytest.fixture(autouse=True)
-def reset_users_table():
-    """Give every test a clean `users` table.
-
-    conftest.py's autouse fixture already resets customers/accounts/
-    transactions; nothing else in the suite touches `users` yet, so it gets
-    its own cleanup here instead of in the shared fixture. Users are cleared
-    on BOTH sides of the test: conftest's fixture runs its setup before this
-    one and deletes customers, so any user row left over from the previous
-    test (users.customer_id -> customers.customer_id) would make that delete
-    fail with a foreign-key violation -- clearing here after yield too keeps
-    the users table empty by the time the next test's conftest setup runs.
-    """
-    _clear_users()
-    yield
-    _clear_users()
 
 
 class TestRegisterCustomer:

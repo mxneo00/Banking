@@ -99,6 +99,10 @@ export default function TransactionHistoryPage() {
   }, [])
 
   function handleSort(field: SortField) {
+    // Clicking the already-active column flips its direction; clicking a
+    // different column switches to it fresh, defaulting to descending
+    // (newest/largest first, the more common starting point for both
+    // dates and amounts).
     if (field === sortField) {
       setSortDirection((direction) => (direction === 'asc' ? 'desc' : 'asc'))
     } else {
@@ -112,12 +116,17 @@ export default function TransactionHistoryPage() {
   }
 
   const filteredAndSorted = useMemo(() => {
+    // Both filters are AND-ed: a row must pass the type dropdown (if set)
+    // AND fuzzy-match the description search (an empty query always matches,
+    // see fuzzyMatch.ts).
     const filtered = transactions.filter((tx) => {
       if (typeFilter && tx.type !== typeFilter) return false
       if (!fuzzyMatch(descriptionSearch, tx.description ?? '').matched) return false
       return true
     })
 
+    // +1/-1 multiplier lets one comparator express both sort directions
+    // instead of duplicating the sort logic per direction.
     const directionMultiplier = sortDirection === 'asc' ? 1 : -1
     return [...filtered].sort((a, b) => {
       if (sortField === 'amount') {

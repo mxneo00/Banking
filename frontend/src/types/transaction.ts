@@ -6,7 +6,7 @@
  * types/auth.ts's User, types/account.ts's Account, types/customer.ts's Customer.
  */
 
-// Exact casing matters -- must match app/models/domain.py's TransactionType
+// Exact casing matters -- must match app/models/database.py's TransactionType
 // enum values ("Deposit"/"Withdrawal"/"Transfer", title case), which the
 // backend validates the incoming transaction_type against literally.
 export type TransactionType = 'Deposit' | 'Withdrawal' | 'Transfer'

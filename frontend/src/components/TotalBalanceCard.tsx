@@ -15,7 +15,13 @@ export default function TotalBalanceCard({ accounts }: { accounts: Account[] }) 
   const total = accounts.reduce((sum, account) => sum + account.balance, 0)
 
   const inactiveCount = accounts.filter((a) => !a.is_active).length
+  // "Overdrawn" only applies to checking (savings can never go negative --
+  // its own withdrawal rule enforces the minimum balance instead).
   const overdrawnCount = accounts.filter((a) => a.account_type === 'checking' && a.balance < 0).length
+  // "At minimum" only applies to savings accounts that actually have a
+  // minimum_balance set, and flags once the balance has reached (or
+  // dipped at/below) that floor -- an early warning before a withdrawal
+  // would be rejected.
   const atMinimumCount = accounts.filter(
     (a) => a.account_type === 'savings' && a.minimum_balance != null && a.balance <= a.minimum_balance,
   ).length

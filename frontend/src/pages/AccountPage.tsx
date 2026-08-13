@@ -236,6 +236,12 @@ function NewAccountForm({
       return
     }
 
+    // Only parse the field that matches the selected account type -- the
+    // other one stays undefined and is simply never sent, mirroring the
+    // backend's rule that the two settings are mutually exclusive by type
+    // (see AccountCreate.reject_mismatched_settings in schemas.py). Leaving
+    // the field blank is valid too (the backend applies its own default),
+    // so parsing only happens when the user actually typed something.
     let parsedMinimumBalance: number | undefined
     let parsedOverdraftLimit: number | undefined
     if (accountType === 'savings' && minimumBalance.trim()) {
@@ -355,6 +361,10 @@ function TransferForm({
     setFormError(null)
 
     const parsedAmount = Number(amount)
+    // Client-side checks mirror the backend's own transfer validation
+    // (process_transfer in transactionService.py) so the user gets instant
+    // feedback instead of a round trip for an obviously-bad input; the
+    // backend still re-validates everything since this is only a UX layer.
     if (!toAccountId.trim()) {
       setFormError('Please select a destination account.')
       return
@@ -395,7 +405,7 @@ function TransferForm({
           value={toAccountId}
           onInputChange={(_event, newValue) => setToAccountId(newValue)}
           disabled={isSubmitting}
-          renderOptions={(props, option) => {
+          renderOption={(props, option) => {
             const match = otherAccounts.find((account) => account.account_number === option)
             return (
               <Box component="li" {...props} key={option}>

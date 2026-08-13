@@ -54,6 +54,8 @@ function formatTimestamp(value: string): string {
   return date.toLocaleString()
 }
 
+/** Midnight, `days` calendar days ago -- inclusive of today, so
+ * `startOfDaysAgo(7)` covers "today and the 6 days before it." */
 function startOfDaysAgo(days: number): Date {
   const d = new Date()
   d.setHours(0, 0, 0, 0)
@@ -105,6 +107,10 @@ export default function AnalyticsPage() {
     }
   }, [user?.branch_id])
 
+  // Flatten every in-scope customer's account numbers into one lookup set --
+  // this is the bridge between "customers scoped to this branch" (from the
+  // API) and "transactions touching this branch" (transactions carry no
+  // branch field of their own, only account ids).
   const branchAccountNumbers = useMemo(() => {
     const set = new Set<string>()
     for (const customer of customers) {
@@ -115,6 +121,8 @@ export default function AnalyticsPage() {
     return set
   }, [customers])
 
+  // A transaction counts as "branch-related" if either side of it touches
+  // one of this branch's accounts (a transfer could cross branches).
   const branchTransactions = useMemo(() => {
     return transactions.filter(
       (tx) =>
@@ -140,12 +148,16 @@ export default function AnalyticsPage() {
     const windowStart = startOfDaysAgo(DAYS_WINDOW)
     const inWindow = branchTransactions.filter((tx) => new Date(tx.timestamp) >= windowStart)
 
+    // Pre-seed all three types at zero so the per-type cards below always
+    // have a bucket to read, even for a type with no activity this window.
     const byType: Record<TransactionType, { count: number; volume: number }> = {
       Deposit: { count: 0, volume: 0 },
       Withdrawal: { count: 0, volume: 0 },
       Transfer: { count: 0, volume: 0 },
     }
 
+    // Single pass over the windowed transactions, tallying count and dollar
+    // volume into the matching bucket as we go.
     for (const tx of inWindow) {
       const bucket = byType[tx.type]
       if (bucket) {

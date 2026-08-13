@@ -39,6 +39,10 @@ export default function BudgetPage() {
         [budgets, periodFilter],
     )
 
+    // Split out regardless of the active filter -- needed so the "all"
+    // view below can render weekly and monthly as two separate donut
+    // charts side by side instead of mixing differently-scaled amounts
+    // into one chart.
     const weeklyBudgets = useMemo(() => budgets.filter((budget) => budget.period === 'weekly'), [budgets])
     const monthlyBudgets = useMemo(() => budgets.filter((budget) => budget.period === 'monthly'), [budgets])
 
@@ -72,6 +76,9 @@ export default function BudgetPage() {
 
     const handleDelete = async (budgetId: string) => {
         try {
+            // Remove from local state only after the server confirms the
+            // delete -- if the request fails, the budget stays in the list
+            // and the error below explains why nothing changed.
             await deleteBudget(budgetId)
             setBudgets((current) => current.filter((budget) => budget.id !== budgetId))
         } catch (err) {

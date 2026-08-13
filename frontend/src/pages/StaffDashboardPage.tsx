@@ -149,6 +149,9 @@ export default function StaffDashboardPage() {
         email: staffEmail,
         password: staffPassword,
         role: staffRole,
+        // Branch is optional (admins in particular don't need one) --
+        // send null rather than an empty string so the backend treats a
+        // blank field as "not supplied."
         branch_id: staffBranchId.trim() || null,
       })
       setStaffMessage(`Created ${created.role} account for ${created.email}.`)
@@ -161,6 +164,9 @@ export default function StaffDashboardPage() {
     }
   }
 
+  // Falls through to the generic "Staff dashboard" if role is somehow
+  // undefined (e.g. mid-load) -- StaffRoute already guarantees a staff role
+  // by the time this page renders for real.
   const roleTitle =
     role === 'admin'
       ? 'Admin dashboard'

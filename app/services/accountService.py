@@ -11,6 +11,9 @@ def _next_account_number(db: Session) -> str:
     """Generate the next AC#### number from existing rows."""
     numbers = db.scalars(select(Account.account_number)).all()
     max_n = 1000
+    # Scan every existing number, ignoring ones that don't match the AC####
+    # pattern (e.g. the seeded "ACC-123"/"ACC-456"), and take the highest
+    # numeric suffix seen so the next one is guaranteed unique.
     for number in numbers:
         if number.startswith("AC") and number[2:].isdigit():
             max_n = max(max_n, int(number[2:]))
@@ -26,6 +29,8 @@ def open_account(
     overdraft_limit: float | None = None,
 ) -> Account:
     """Open a savings or checking account and persist it to Postgres."""
+    # Field-level validation first -- cheap checks that don't need the DB,
+    # so a malformed request never gets as far as a customer lookup.
     if account_type not in ("savings", "checking"):
         raise ValidationError(
             f"account_type must be 'savings' or 'checking', got '{account_type}'."
@@ -49,6 +54,9 @@ def open_account(
     if not customer.is_active:
         raise ValidationError(f"Customer '{customer_id}' is deactivated and cannot open new accounts.")
 
+    # Apply the type-specific default when the caller didn't supply one --
+    # savings gets a minimum balance, checking gets an overdraft limit, and
+    # each account only ever has one of the two set (see the validation above).
     min_bal = None
     od_limit = None
     if account_type == "savings":

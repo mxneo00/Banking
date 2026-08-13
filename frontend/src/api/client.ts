@@ -54,6 +54,11 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config
 })
 
+// Module-level (not per-request) so concurrent 401s share one in-flight
+// refresh instead of each firing its own POST /auth/refresh. Whoever hits
+// the 401 first starts the request and stores the promise here; everyone
+// else who 401s while it's pending just awaits the same promise. Reset to
+// null once it settles so the next expiry starts a fresh refresh.
 let refreshPromise: Promise<string | null> | null = null
 
 async function refreshAccessToken(): Promise<string | null> {
@@ -63,6 +68,9 @@ async function refreshAccessToken(): Promise<string | null> {
   }
 
   try {
+    // Plain axios, not apiClient -- going through apiClient would route this
+    // request through the same response interceptor below, and a failed
+    // refresh returning 401 would try to refresh itself into a loop.
     const { data } = await axios.post<{ access_token: string }>(
       `${API_BASE_URL}/api/v1/auth/refresh`,
       { refresh_token: refreshToken },
@@ -71,6 +79,8 @@ async function refreshAccessToken(): Promise<string | null> {
     tokenStorage.setAccessToken(data.access_token)
     return data.access_token
   } catch {
+    // Refresh token itself is invalid/expired -- nothing left to try, so
+    // clear both tokens and force the user back through login.
     tokenStorage.clear()
     return null
   }
@@ -82,12 +92,17 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
     const isAuthRefresh = originalRequest?.url?.includes('/api/v1/auth/refresh')
 
+    // Only a 401 is worth retrying, and only once per request (_retry guards
+    // against looping if the refreshed token still comes back 401). Also
+    // skip the refresh endpoint's own 401s here -- refreshAccessToken()
+    // already handles that failure directly above.
     if (error.response?.status !== 401 || originalRequest._retry || isAuthRefresh) {
       return Promise.reject(error)
     }
 
     originalRequest._retry = true
 
+    // Kick off (or join) the single shared refresh described above.
     if (!refreshPromise) {
       refreshPromise = refreshAccessToken().finally(() => {
         refreshPromise = null
@@ -99,6 +114,9 @@ apiClient.interceptors.response.use(
       return Promise.reject(error)
     }
 
+    // Re-issue the original request with the new token rather than making
+    // the caller retry manually -- from the caller's point of view the
+    // request just succeeded, slightly late.
     originalRequest.headers.Authorization = `Bearer ${newAccessToken}`
     return apiClient(originalRequest)
   },

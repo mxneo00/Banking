@@ -60,7 +60,12 @@ export default function BudgetBreakdownList() {
     )
   }
 
+  // Largest budgets first, capped to a short preview list -- this is a
+  // Dashboard summary, not the full management view (that's BudgetPage.tsx).
   const rows = [...budgets].sort((a, b) => b.amount - a.amount).slice(0, MAX_ROWS)
+  // Bar widths are relative to the biggest budget *shown*, not some fixed
+  // dollar scale, so the largest bar always fills the row regardless of
+  // whether budgets are in the tens or thousands.
   const maxAmount = Math.max(...rows.map((b) => b.amount))
 
   return (
