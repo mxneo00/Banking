@@ -25,6 +25,9 @@ def _next_customer_id(db: Session) -> str:
     invent their own internal ID."""
     ids = db.query(CustomerDB.customer_id).all()
     max_n = 0
+    # Same pattern as accountService._next_account_number: find the highest
+    # existing numeric suffix and increment it, skipping any id that doesn't
+    # match the CUST-## shape.
     for (customer_id,) in ids:
         if customer_id.startswith("CUST-") and customer_id[5:].isdigit():
             max_n = max(max_n, int(customer_id[5:]))
@@ -36,10 +39,14 @@ def register_customer(db: Session, email: str, password: str, name: str, branch_
     UserORM login (role=customer) together, as one signed-up "account"
     from the caller's point of view.
     """
+    # Normalize once up front so the uniqueness check and the stored value
+    # always agree, regardless of how the caller capitalized/spaced it.
     email = email.strip().lower()
     if db.query(UserORM).filter(UserORM.email == email).first() is not None:
         raise DuplicateError(f"An account with email '{email}' already exists.")
 
+    # Create the bank profile first, then the login that references it --
+    # order matters because UserORM.customer_id is a real FK.
     customer = CustomerDB(customer_id=_next_customer_id(db), name=name, email=email, branch_id=branch_id)
     db.add(customer)
     db.flush()  # assigns the row within this transaction so the FK below is satisfiable

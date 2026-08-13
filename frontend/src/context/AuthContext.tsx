@@ -46,13 +46,22 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
 async function loadSession(): Promise<User | null> {
+  // No token in localStorage at all means there's no session to restore --
+  // skip the network call entirely rather than firing a request that will
+  // just 401.
   if (!tokenStorage.getAccessToken()) {
     return null
   }
 
   try {
+    // A stored access token might still be stale (expired, or revoked via
+    // token_version) -- fetchCurrentUser is the actual proof it still works.
+    // client.ts's interceptor will transparently refresh it here if needed.
     return await fetchCurrentUser()
   } catch {
+    // Both tokens are worthless at this point (refresh already failed
+    // inside the interceptor) -- clear them so the app doesn't keep
+    // retrying a dead session on every request.
     tokenStorage.clear()
     return null
   }
@@ -63,6 +72,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    // `cancelled` guards against setting state after this effect's cleanup
+    // has run (e.g. the component unmounted mid-request, or React 18 Strict
+    // Mode's mount/unmount/remount in dev) -- without it a late response
+    // could call setState on an unmounted component.
     let cancelled = false
 
     loadSession()
@@ -72,6 +85,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       })
       .finally(() => {
+        // Runs whether loadSession resolved to a user or null -- either way,
+        // the "are we still figuring out who's logged in?" phase is over.
         if (!cancelled) {
           setIsLoading(false)
         }
@@ -83,6 +98,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const login = useCallback(async (credentials: LoginCredentials) => {
+    // Exchange credentials for a token pair, persist them, then fetch the
+    // full user profile the tokens' claims alone don't carry (e.g. is_active,
+    // branch_id) -- this is what flips isAuthenticated to true below.
     const tokens = await loginRequest(credentials)
     tokenStorage.setTokens(tokens.access_token, tokens.refresh_token)
     const currentUser = await fetchCurrentUser()
@@ -90,6 +108,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const register = useCallback(async (credentials: RegisterCredentials) => {
+    // Same shape as login() above -- registration also returns a usable
+    // token pair immediately, so there's no separate "now go log in" step.
     const tokens = await registerRequest(credentials)
     tokenStorage.setTokens(tokens.access_token, tokens.refresh_token)
     const currentUser = await fetchCurrentUser()

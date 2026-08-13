@@ -62,6 +62,7 @@ def create_transaction(txn_data: dict) -> dict:
     Expects the shape of TransactionCreate: from_account, to_account,
     amount, transaction_type.
     """
+    # Validate the type string first -- everything else below branches on it.
     try:
         tx_type = TransactionType(txn_data.get("transaction_type"))
     except ValueError:
@@ -75,10 +76,15 @@ def create_transaction(txn_data: dict) -> dict:
     if amount is None or amount <= 0:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="amount must be greater than 0.")
 
+    # Accept both the REST-ish `from_account`/`to_account` keys and the
+    # `_id`-suffixed ones so this works whether the caller sent a
+    # TransactionCreate payload or a hand-built dict (e.g. from a test).
     from_account_id = txn_data.get("from_account") or txn_data.get("from_account_id")
     to_account_id = txn_data.get("to_account") or txn_data.get("to_account_id")
     description = txn_data.get("description")
 
+    # Dispatch on type, checking that only the accounts that type needs were
+    # actually supplied (see the docstring's table above).
     if tx_type is TransactionType.TRANSFER:
         if not from_account_id or not to_account_id:
             raise HTTPException(
@@ -114,8 +120,12 @@ def _apply_single_account_transaction(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Account '{account_id}' is inactive.")
 
         if credit:
+            # Deposits always succeed once the account itself checks out --
+            # there's no upper bound on a balance.
             account.balance += amount
         else:
+            # Withdrawals must respect overdraft protection; raises before
+            # the balance is touched if the debit would breach the floor.
             _ensure_can_debit(account, amount)
             account.balance -= amount
 
@@ -137,6 +147,8 @@ def _apply_single_account_transaction(
 def get_transactions(start_date: Optional[str] = None, transaction_type: Optional[str] = None) -> List[dict]:
     """Return transactions, optionally filtered by start date (YYYY-MM-DD) or type."""
     with SessionLocal() as session:
+        # Start unfiltered and narrow the query with each optional param
+        # supplied -- both filters are independent and can combine.
         stmt = select(TransactionORM)
 
         if transaction_type:

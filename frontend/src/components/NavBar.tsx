@@ -77,6 +77,10 @@ export default function NavBar({
   const visibleNav = useMemo(() => {
     const staff = isStaffRole(user?.role)
     const role = user?.role
+    // Three-tier visibility per item: customerOnly items need a non-staff
+    // user; staffOnly items need a staff user AND (if `roles` narrows it
+    // further, e.g. Cash desk being teller/admin only) a matching role;
+    // anything with neither flag is visible to everyone.
     return navItems.filter((item) => {
       if (item.customerOnly) return !staff
       if (item.staffOnly) {
@@ -113,6 +117,10 @@ export default function NavBar({
       <Divider />
       <List sx={{ px: 1, flexGrow: 1 }}>
         {visibleNav.map((item) => {
+          // Dashboard ("/") needs an exact match, or it would also light up
+          // for every other route (they all start with "/"). Every other
+          // item uses startsWith so a nested path (e.g. "/accounts/123", if
+          // one existed) still highlights its parent nav entry.
           const selected =
             item.path === '/'
               ? location.pathname === '/'

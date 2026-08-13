@@ -18,6 +18,10 @@ export default function AppLayout() {
   const desktopDrawerWidth = collapsed ? RAIL_WIDTH : DRAWER_WIDTH
 
   function toggleCollapsed() {
+    // Persist alongside the state update (not in a separate useEffect) so
+    // the write happens exactly once per toggle, using the same `next`
+    // value that becomes the new state -- avoids a second render just to
+    // sync localStorage.
     setCollapsed((current) => {
       const next = !current
       localStorage.setItem(NAV_COLLAPSED_STORAGE_KEY, String(next))

@@ -20,16 +20,25 @@ const MAX_SLICES = CATEGORICAL_COLORS.length
 
 export default function BudgetAllocationChart({ budgets }: { budgets: Budget[] }) {
   const slices: DonutSlice[] = useMemo(() => {
+    // Multiple budgets can share a category (e.g. two "Groceries" budgets
+    // on different periods elsewhere) -- collapse them into one slice per
+    // category by summing amounts.
     const totals = new Map<string, number>()
     for (const budget of budgets) {
       if (budget.amount <= 0) continue
       totals.set(budget.category, (totals.get(budget.category) ?? 0) + budget.amount)
     }
 
+    // Largest first, so both the chart and the legend below it read
+    // biggest-to-smallest.
     const sorted = Array.from(totals, ([category, amount]) => ({ category, amount })).sort(
       (a, b) => b.amount - a.amount,
     )
 
+    // The categorical palette only has MAX_SLICES colors and a donut with
+    // too many slivers stops being readable -- once there are more
+    // categories than that, keep the top (MAX_SLICES - 1) individually and
+    // fold everything past that into one "Other" slice.
     const grouped =
       sorted.length <= MAX_SLICES
         ? sorted

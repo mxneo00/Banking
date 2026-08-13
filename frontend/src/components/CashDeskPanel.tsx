@@ -91,6 +91,9 @@ export default function CashDeskPanel({ onSuccess, embedded = false }: CashDeskP
       try {
         const rows = await listTransactions()
         if (cancelled) return
+        // No "transactions for this account" endpoint exists -- fetch the
+        // full ledger the caller can see (staff sees everything) and narrow
+        // to this account, newest first, capped to a short preview list.
         const forAccount = rows
           .filter(
             (tx) =>
@@ -162,6 +165,9 @@ export default function CashDeskPanel({ onSuccess, embedded = false }: CashDeskP
     setCustomerSearchError(null)
     setCustomerSearchDone(false)
     try {
+      // Branch-scope the candidate list server-side when this teller belongs
+      // to one branch, then narrow by name client-side -- there's no
+      // name-search query param on GET /customers today.
       const params = user?.branch_id ? { branch_id: user.branch_id } : undefined
       const rows = await listCustomers(params)
       const matches = rows.filter((customer) => customer.name.toLowerCase().includes(q))
@@ -203,6 +209,9 @@ export default function CashDeskPanel({ onSuccess, embedded = false }: CashDeskP
 
     setSubmitting(true)
     try {
+      // A deposit credits `to_account`; a withdrawal debits `from_account`
+      // -- only one side is ever sent, matching what transactionController
+      // expects for each type (see app/services/transactionService.py).
       const payload =
         operation === 'Deposit'
           ? {

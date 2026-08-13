@@ -49,11 +49,19 @@ function reconstructAccountSeries(account: Account, transactions: Transaction[])
   const afterBalances = new Array<number>(relevant.length)
   let balance = account.balance
   for (let i = relevant.length - 1; i >= 0; i--) {
+    // `balance` here is "the balance right after transaction i" on this
+    // pass, since we start from the current (i.e. after the *last*
+    // transaction) balance and walk backward.
     afterBalances[i] = balance
     const tx = relevant[i]
     const isIncoming = tx.to_account_id === account.account_number
+    // Reversing the transaction's effect: an incoming credit is subtracted
+    // back out, an outgoing debit is added back in, leaving `balance` equal
+    // to what it was immediately *before* transaction i.
     balance = isIncoming ? balance - tx.amount : balance + tx.amount
   }
+  // After the loop, `balance` has been walked back past the earliest known
+  // transaction -- this is the account's balance right before it happened.
   const beforeFirst = balance
 
   const points: Point[] = [
@@ -65,12 +73,16 @@ function reconstructAccountSeries(account: Account, transactions: Transaction[])
   return points
 }
 
+/** A step function: the balance held at time `t` is whatever it was set to
+ * by the most recent point at or before `t` (series is assumed sorted). */
 function balanceAt(series: Point[], t: number): number {
   let result = series[0].balance
   for (const p of series) {
     if (p.timestamp <= t) {
       result = p.balance
     } else {
+      // Series is sorted ascending, so once a point is later than `t`
+      // every remaining point will be too -- safe to stop scanning.
       break
     }
   }
@@ -80,6 +92,9 @@ function balanceAt(series: Point[], t: number): number {
 /** Sums every account's reconstructed series onto one shared timeline. */
 function buildAggregateSeries(accounts: Account[], transactions: Transaction[]): Point[] {
   const perAccountSeries = accounts.map((account) => reconstructAccountSeries(account, transactions))
+  // Each account has its own set of transaction timestamps; merge and
+  // dedupe them into one shared timeline so every account gets evaluated
+  // (via balanceAt's step function) at every point any account changed.
   const allTimestamps = Array.from(
     new Set(perAccountSeries.flatMap((series) => series.map((p) => p.timestamp))),
   ).sort((a, b) => a - b)
@@ -139,6 +154,9 @@ export default function BalanceTrendChart({
   const rawMinBalance = Math.min(...balances)
   const rawMaxBalance = Math.max(...balances)
   // Pad the value domain so the line doesn't touch the top/bottom edges.
+  // The `|| Math.abs(rawMaxBalance) || 1` fallback chain handles a flat
+  // line (min === max): first try 10% of the value itself, then just fall
+  // back to a fixed unit so a $0 flat line still gets a visible range.
   const balanceRange = rawMaxBalance - rawMinBalance || Math.abs(rawMaxBalance) || 1
   const minBalance = rawMinBalance - balanceRange * 0.1
   const maxBalance = rawMaxBalance + balanceRange * 0.1
@@ -147,11 +165,20 @@ export default function BalanceTrendChart({
   const plotHeight = VIEWBOX_HEIGHT - PADDING.top - PADDING.bottom
   const timeRange = maxT - minT || 1
 
+  // Map a timestamp/balance (data space) to an SVG x/y coordinate (viewBox
+  // space). yScale inverts the fraction (`1 - ...`) because SVG y grows
+  // downward while a higher balance should plot higher up (smaller y).
   const xScale = (t: number) => PADDING.left + ((t - minT) / timeRange) * plotWidth
   const yScale = (balance: number) =>
     PADDING.top + (1 - (balance - minBalance) / (maxBalance - minBalance)) * plotHeight
 
+  // The line itself: "M" (move to) the first point, then "L" (line to)
+  // every point after it.
   const linePath = series.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xScale(p.timestamp)} ${yScale(p.balance)}`).join(' ')
+  // The filled area under the line: reuse the line path, then drop straight
+  // down to the baseline at the last point, run back along the baseline to
+  // the first point's x, and close -- turns the line into a closed shape
+  // that can be filled with the gradient below.
   const areaPath = `${linePath} L ${xScale(series[series.length - 1].timestamp)} ${PADDING.top + plotHeight} L ${xScale(series[0].timestamp)} ${PADDING.top + plotHeight} Z`
 
   const current = series[series.length - 1]

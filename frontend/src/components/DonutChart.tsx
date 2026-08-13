@@ -14,6 +14,13 @@ const CENTER = VIEWBOX / 2
 const OUTER_RADIUS = 92
 const INNER_RADIUS = 58
 
+/**
+ * Converts a (radius, angle) pair to the SVG (x, y) point on that circle.
+ * Angles are in "clock" terms -- 0deg is straight up, increasing clockwise
+ * -- so slices read left-to-right starting at 12 o'clock, matching how the
+ * legend below lists them. SVG's own 0deg is 3 o'clock (standard math
+ * convention), hence the `-90` rotation before converting to radians.
+ */
 function polarToCartesian(radius: number, angleDeg: number) {
   const angleRad = ((angleDeg - 90) * Math.PI) / 180
   return {
@@ -22,6 +29,20 @@ function polarToCartesian(radius: number, angleDeg: number) {
   }
 }
 
+/**
+ * Builds the SVG path `d` for one donut wedge: an outer arc from endAngle
+ * back to startAngle, a line inward, then an inner arc back out to endAngle,
+ * closed. Drawing the outer arc "backwards" (end -> start) and the inner arc
+ * "forwards" (start -> end) is what makes the two arcs curve the same way
+ * and the path close into a clean wedge instead of a bowtie.
+ *
+ * `largeArc` is the SVG arc flag that picks the >180deg way around the
+ * circle over the <180deg way whenever a slice itself exceeds a half-circle
+ * (rare, but a single dominant category can do it). The `0`/`1` sweep flags
+ * are fixed because both arcs always sweep the same rotational direction
+ * (counter-clockwise for the outer edge, clockwise for the inner) for any
+ * slice.
+ */
 function donutSlicePath(startAngle: number, endAngle: number) {
   const largeArc = endAngle - startAngle > 180 ? 1 : 0
   const outerStart = polarToCartesian(OUTER_RADIUS, endAngle)
@@ -37,6 +58,14 @@ function donutSlicePath(startAngle: number, endAngle: number) {
   ].join(' ')
 }
 
+/**
+ * Picks black or white text for a percentage label drawn on top of a slice,
+ * based on that slice's own fill color -- so labels stay legible no matter
+ * how light or dark a category's color is. `luminance` is the standard
+ * perceived-brightness weighting (human eyes are most sensitive to green,
+ * least to blue); above the 0.6 threshold the color reads as "light enough"
+ * for dark text, otherwise white text is used.
+ */
 function labelColorFor(hex: string) {
   const r = parseInt(hex.slice(1, 3), 16)
   const g = parseInt(hex.slice(3, 5), 16)
