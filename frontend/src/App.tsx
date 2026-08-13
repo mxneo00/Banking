@@ -13,6 +13,7 @@ import CashDeskPage from './pages/CashDeskPage'
 import AccountPage from './pages/AccountPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
+import BudgetPage from './pages/BudgetPage'
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
             <Route element={<AppLayout />}>
               <Route index element={<DashboardPage />} />
               <Route path="accounts" element={<AccountPage />} />
+              <Route path="budgets" element={<BudgetPage />} />
             </Route>
           </Route>
         </Route>

@@ -136,3 +136,13 @@ class UserOut(BaseModel):
     branch_id: Optional[str] = None
     is_active: bool
     created_at: datetime
+
+class BudgetCreate(BaseModel):
+    category: str
+    amount: float = Field(..., gt=0, description="Budget amount must be positive")
+    period: Literal["weekly", "monthly"]
+
+class BudgetUpdate(BaseModel):
+    category: Optional[str] = None
+    amount: Optional[float] = Field(None, gt=0, description="Budget amount must be positive")
+    period: Optional[Literal["weekly", "monthly"]] = None

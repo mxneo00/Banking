@@ -17,6 +17,7 @@ import {
   Typography,
   useMediaQuery,
 } from '@mui/material'
+import SavingsIcon from '@mui/icons-material/Savings'
 import { useTheme } from '@mui/material/styles'
 import MenuIcon from '@mui/icons-material/Menu'
 import DashboardIcon from '@mui/icons-material/Dashboard'
@@ -42,6 +43,7 @@ type NavItem = {
 const navItems: NavItem[] = [
   { label: 'Dashboard', path: '/', icon: <DashboardIcon />, customerOnly: true },
   { label: 'Accounts', path: '/accounts', icon: <AccountBalanceIcon />, customerOnly: true },
+  { label: 'Budgets', path: '/budgets', icon: <SavingsIcon />, customerOnly: true },
   { label: 'Staff home', path: '/staff', icon: <DashboardIcon />, staffOnly: true },
   {
     label: 'Cash desk',

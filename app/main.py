@@ -22,6 +22,7 @@ from controllers.accountController import router as account_router
 from controllers.authController import router as auth_router
 from controllers.customerController import router as customer_router
 from controllers.transactionController import router as transaction_router
+from controllers.budgetController import router as budget_router
 
 from models.exceptions import (
     BankingError,
@@ -38,6 +39,7 @@ app.include_router(auth_router)
 app.include_router(customer_router)
 app.include_router(account_router)
 app.include_router(transaction_router)
+app.include_router(budget_router)
 
 # CORS configuration: allow requests from the frontend (e.g., Vite dev server at localhost:5173)
 # CORS_ORIGINS is a comma-separated list of allowed origins, defaulting to http://localhost:5173 if not set in the environment.
