@@ -1,119 +1,29 @@
-import { useMemo, useState, type ReactNode } from 'react'
-import { Link as RouterLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import {
-  AppBar,
-  Box,
-  Button,
-  Chip,
-  Divider,
-  Drawer,
-  IconButton,
-  List,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
-  Stack,
-  Toolbar,
-  Typography,
-  useMediaQuery,
-} from '@mui/material'
-import SavingsIcon from '@mui/icons-material/Savings'
+import { useState } from 'react'
+import { Outlet } from 'react-router-dom'
+import { AppBar, Box, IconButton, Toolbar, Typography, useMediaQuery } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
 import MenuIcon from '@mui/icons-material/Menu'
-import DashboardIcon from '@mui/icons-material/Dashboard'
-import InsightsIcon from '@mui/icons-material/Insights'
-import AccountBalanceIcon from '@mui/icons-material/AccountBalance'
-import ReceiptLongIcon from '@mui/icons-material/ReceiptLong'
-import PointOfSaleIcon from '@mui/icons-material/PointOfSale'
-import { useAuth } from '../context/AuthContext'
-import { isStaffRole, type UserRole } from '../types/auth'
+import NavBar, { DRAWER_WIDTH, RAIL_WIDTH } from './NavBar'
 
-const DRAWER_WIDTH = 240
-
-type NavItem = {
-  label: string
-  path: string
-  icon: ReactNode
-  staffOnly?: boolean
-  customerOnly?: boolean
-  /** If set, only these roles see the item (still requires staffOnly/customerOnly rules). */
-  roles?: readonly UserRole[]
-}
-
-const navItems: NavItem[] = [
-  { label: 'Dashboard', path: '/', icon: <DashboardIcon />, customerOnly: true },
-  { label: 'Accounts', path: '/accounts', icon: <AccountBalanceIcon />, customerOnly: true },
-  { label: 'Budgets', path: '/budgets', icon: <SavingsIcon />, customerOnly: true },
-  { label: 'Staff home', path: '/staff', icon: <DashboardIcon />, staffOnly: true },
-  {
-    label: 'Cash desk',
-    path: '/cash-desk',
-    icon: <PointOfSaleIcon />,
-    staffOnly: true,
-    roles: ['teller', 'admin'],
-  },
-  { label: 'Branch overview', path: '/analytics', icon: <InsightsIcon />, staffOnly: true },
-  { label: 'Transactions', path: '/transactions', icon: <ReceiptLongIcon />, staffOnly: true },
-]
+const NAV_COLLAPSED_STORAGE_KEY = 'nav_collapsed'
 
 export default function AppLayout() {
   const theme = useTheme()
-  const location = useLocation()
-  const navigate = useNavigate()
-  const { user, logout } = useAuth()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
   const [mobileOpen, setMobileOpen] = useState(false)
-
-  const visibleNav = useMemo(() => {
-    const staff = isStaffRole(user?.role)
-    const role = user?.role
-    return navItems.filter((item) => {
-      if (item.customerOnly) return !staff
-      if (item.staffOnly) {
-        if (!staff) return false
-        if (item.roles && (!role || !item.roles.includes(role))) return false
-        return true
-      }
-      return true
-    })
-  }, [user?.role])
-
-  async function handleLogout() {
-    await logout()
-    navigate('/login', { replace: true })
-  }
-
-  const drawer = (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <Toolbar>
-        <Typography variant="h6" noWrap>
-          Banking
-        </Typography>
-      </Toolbar>
-      <Divider />
-      <List sx={{ px: 1 }}>
-        {visibleNav.map((item) => {
-          const selected =
-            item.path === '/'
-              ? location.pathname === '/'
-              : location.pathname.startsWith(item.path)
-          return (
-            <ListItemButton
-              key={item.path}
-              component={RouterLink}
-              to={item.path}
-              selected={selected}
-              onClick={() => setMobileOpen(false)}
-              sx={{ borderRadius: 2, mb: 0.5 }}
-            >
-              <ListItemIcon sx={{ minWidth: 40 }}>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.label} />
-            </ListItemButton>
-          )
-        })}
-      </List>
-    </Box>
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem(NAV_COLLAPSED_STORAGE_KEY) === 'true',
   )
+
+  const desktopDrawerWidth = collapsed ? RAIL_WIDTH : DRAWER_WIDTH
+
+  function toggleCollapsed() {
+    setCollapsed((current) => {
+      const next = !current
+      localStorage.setItem(NAV_COLLAPSED_STORAGE_KEY, String(next))
+      return next
+    })
+  }
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
@@ -121,8 +31,11 @@ export default function AppLayout() {
         position="fixed"
         sx={{
           zIndex: (t) => t.zIndex.drawer + 1,
-          width: { md: `calc(100% - ${DRAWER_WIDTH}px)` },
-          ml: { md: `${DRAWER_WIDTH}px` },
+          width: { md: `calc(100% - ${desktopDrawerWidth}px)` },
+          ml: { md: `${desktopDrawerWidth}px` },
+          transition: theme.transitions.create(['width', 'margin'], {
+            duration: theme.transitions.duration.shorter,
+          }),
         }}
       >
         <Toolbar>
@@ -140,52 +53,26 @@ export default function AppLayout() {
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             Bank Management Portal
           </Typography>
-          {user && (
-            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-              <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' } }}>
-                {user.email}
-              </Typography>
-              <Chip label={user.role} size="small" color="secondary" variant="outlined" />
-              <Button color="inherit" size="small" onClick={handleLogout}>
-                Log out
-              </Button>
-            </Stack>
-          )}
         </Toolbar>
       </AppBar>
 
-      <Box component="nav" sx={{ width: { md: DRAWER_WIDTH }, flexShrink: { md: 0 } }}>
-        <Drawer
-          variant="temporary"
-          open={mobileOpen}
-          onClose={() => setMobileOpen(false)}
-          ModalProps={{ keepMounted: true }}
-          sx={{
-            display: { xs: 'block', md: 'none' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: DRAWER_WIDTH },
-          }}
-        >
-          {drawer}
-        </Drawer>
-        <Drawer
-          variant="permanent"
-          open
-          sx={{
-            display: { xs: 'none', md: 'block' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: DRAWER_WIDTH },
-          }}
-        >
-          {drawer}
-        </Drawer>
-      </Box>
+      <NavBar
+        mobileOpen={mobileOpen}
+        onMobileClose={() => setMobileOpen(false)}
+        collapsed={collapsed}
+        onToggleCollapsed={toggleCollapsed}
+      />
 
       <Box
         component="main"
         sx={{
           flexGrow: 1,
           p: { xs: 2, md: 3 },
-          width: { md: `calc(100% - ${DRAWER_WIDTH}px)` },
+          width: { md: `calc(100% - ${desktopDrawerWidth}px)` },
           bgcolor: 'background.default',
+          transition: theme.transitions.create('width', {
+            duration: theme.transitions.duration.shorter,
+          }),
         }}
       >
         <Toolbar />

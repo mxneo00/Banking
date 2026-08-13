@@ -14,6 +14,7 @@ import AccountPage from './pages/AccountPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import BudgetPage from './pages/BudgetPage'
+import TransactionHistoryPage from './pages/TransactionHistoryPage'
 
 export default function App() {
   return (
@@ -31,6 +32,7 @@ export default function App() {
               <Route index element={<DashboardPage />} />
               <Route path="accounts" element={<AccountPage />} />
               <Route path="budgets" element={<BudgetPage />} />
+              <Route path="transaction-history" element={<TransactionHistoryPage />} />
             </Route>
           </Route>
         </Route>

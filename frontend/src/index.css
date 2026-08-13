@@ -1,3 +1,21 @@
+/*
+ * Smooths the light/dark mode toggle -- otherwise every background/text/
+ * border color just snaps instantly, which reads as an abrupt flash rather
+ * than a mode switch. Scoped to color-only properties (not `all`) so this
+ * never fights the app's other transitions (the nav rail's width animation,
+ * MUI's own transform/opacity-based transitions, etc).
+ */
+*,
+*::before,
+*::after {
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease,
+    fill 0.2s ease,
+    stroke 0.2s ease;
+}
+
 html,
 body,
 #root {
