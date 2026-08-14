@@ -10,7 +10,9 @@ import AnalyticsPage from './pages/AnalyticsPage'
 import StaffDashboardPage from './pages/StaffDashboardPage'
 import StaffTransactionsPage from './pages/StaffTransactionsPage'
 import CashDeskPage from './pages/CashDeskPage'
+import StaffTransferPage from './pages/StaffTransferPage'
 import AccountPage from './pages/AccountPage'
+import CustomerTransferPage from './pages/CustomerTransferPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import BudgetPage from './pages/BudgetPage'
@@ -31,6 +33,7 @@ export default function App() {
             <Route element={<AppLayout />}>
               <Route index element={<DashboardPage />} />
               <Route path="accounts" element={<AccountPage />} />
+              <Route path="send" element={<CustomerTransferPage />} />
               <Route path="budgets" element={<BudgetPage />} />
               <Route path="transaction-history" element={<TransactionHistoryPage />} />
             </Route>
@@ -42,6 +45,7 @@ export default function App() {
           <Route element={<AppLayout />}>
             <Route path="staff" element={<StaffDashboardPage />} />
             <Route path="cash-desk" element={<CashDeskPage />} />
+            <Route path="transfers" element={<StaffTransferPage />} />
             <Route path="analytics" element={<AnalyticsPage />} />
             <Route path="transactions" element={<StaffTransactionsPage />} />
           </Route>

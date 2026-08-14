@@ -30,7 +30,8 @@ export function isStaffPath(path: string): boolean {
     path.startsWith('/staff/') ||
     path === '/analytics' ||
     path === '/transactions' ||
-    path === '/cash-desk'
+    path === '/cash-desk' ||
+    path === '/transfers'
   )
 }
 

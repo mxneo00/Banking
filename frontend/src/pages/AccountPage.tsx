@@ -77,7 +77,8 @@ export default function AccountPage() {
         Accounts
       </Typography>
       <Typography color="text.secondary" sx={{ mb: 3 }}>
-        View balances and account details, and transfer between accounts.
+        View balances and account details, and send money to your other accounts or to
+        another customer.
       </Typography>
 
       <Box sx={{ mb: 3 }}>
@@ -424,14 +425,11 @@ function TransferForm({
             <TextField
               {...params}
               label="Destination account"
-              placeholder={
-                otherAccounts.length > 0
-                  ? 'Select or type an account number'
-                  : 'e.g. ACC-456'
-              }
+              placeholder="Select one of yours, or type any account number"
               size="small"
               fullWidth
-              disabled={isSubmitting || otherAccounts.length === 0}
+              helperText="You can send to another of your accounts or to an account you do not own."
+              disabled={isSubmitting}
             />
           )}
         />
