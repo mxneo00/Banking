@@ -19,6 +19,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, create_engine
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
+from sqlalchemy.pool import NullPool
 
 # This file: app/models/database.py -> parents[2] is the project root.
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
@@ -30,7 +31,16 @@ if not DATABASE_URL:
         "root and adjust it if your Postgres credentials differ."
     )
 
-engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+# NullPool + prepare_threshold=None: one connection per checkout, no
+# prepared statements. Required for Supabase PgBouncer (session pool is
+# capped at ~15 on free tier; SQLAlchemy's default pool_size=5 plus
+# overflow can consume that alone, and transaction mode forbids prepares).
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    poolclass=NullPool,
+    connect_args={"prepare_threshold": None},
+)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 Base = declarative_base()
 

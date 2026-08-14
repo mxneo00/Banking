@@ -1,6 +1,8 @@
 [Unit]
 Description=Bank Management API
 After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=3
 
 [Service]
 User=ec2-user
@@ -8,7 +10,7 @@ Group=ec2-user
 WorkingDirectory=/home/ec2-user/Banking/app
 EnvironmentFile=/home/ec2-user/Banking/.env
 ExecStart=/home/ec2-user/Banking/.venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000
-Restart=always
+Restart=on-failure
 RestartSec=5
 
 [Install]
