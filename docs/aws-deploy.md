@@ -3,6 +3,10 @@
 Beginner path for this repo: React files on S3, FastAPI on one EC2 instance,
 Postgres on Supabase, CloudFront as the HTTPS URL (no custom domain).
 
+**Branch policy:** this deployment uses **only** `jygonza-deployment`. Clone that
+branch, pull that branch, push that branch. Do not clone `main` or `dev`. Do not
+merge or push this deploy to any other branch.
+
 Do **not** paste `.pem` files, AWS keys, `DATABASE_URL`, or `JWT_SECRET_KEY`
 into chat or into git.
 
@@ -45,14 +49,15 @@ ssh -i "$env:USERPROFILE\Downloads\jooyoung-key.pem" ec2-user@100.59.252.244
 
 ## 3. Install the API on EC2
 
-Push this branch to GitHub first, then on the instance:
+On the instance, clone **this branch only** (`jygonza-deployment`, not `main`):
 
 ```bash
 sudo dnf update -y
 sudo dnf install -y git nginx python3.11 python3.11-pip
 cd ~
-git clone -b jygonza-deployment https://github.com/mxneo00/Banking.git
+git clone -b jygonza-deployment --single-branch https://github.com/mxneo00/Banking.git
 cd Banking
+git checkout jygonza-deployment
 python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -179,8 +184,17 @@ Open the CloudFront URL, register or log in, and hit a customer page.
 
 ## 7. Updating later
 
-- **API:** SSH, `cd ~/Banking`, `git pull`, `sudo systemctl restart banking-api`.
+- **API:** SSH, then pull **this branch only**:
+
+  ```bash
+  cd ~/Banking
+  git checkout jygonza-deployment
+  git pull origin jygonza-deployment
+  sudo systemctl restart banking-api
+  ```
+
   Re-run `pip install -r requirements.txt` inside the venv if dependencies changed.
+  Never `git push` from EC2, and never push or merge this deploy onto `main`/`dev`.
 - **Frontend:** rebuild locally, re-upload `dist/` to S3, then CloudFront →
   **Invalidations** → create `/*` (otherwise old JS can stick for up to 24h).
 - **Stop/start EC2:** the Elastic IP keeps CloudFront’s origin stable. systemd
