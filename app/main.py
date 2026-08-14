@@ -15,7 +15,6 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from controllers.accountController import router as account_router
@@ -57,9 +56,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+def _seed_demo_data_enabled() -> bool:
+    """Local default is on; set SEED_DEMO_DATA=false on a public deploy."""
+    raw = os.environ.get("SEED_DEMO_DATA", "true").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
+
+@app.get("/health")
+def health():
+    """Liveness check for nginx / CloudFront. Does not touch the database."""
+    return {"status": "ok"}
+
+
 @app.on_event("startup")
 def on_startup():
-    """Create Postgres tables and seed the local demo dataset.
+    """Create Postgres tables and optionally seed the local demo dataset.
 
     Order is handled inside seed_all_demo_data() (customers before accounts,
     accounts before transactions, etc.). Seeds are idempotent by natural key
@@ -68,7 +80,8 @@ def on_startup():
     from models.database import init_db, seed_all_demo_data
 
     init_db()
-    seed_all_demo_data()
+    if _seed_demo_data_enabled():
+        seed_all_demo_data()
 
 """ 
 Error handlers: map each domain exception (and FastAPI's own request validation errors) to the HTTP status code it should produce.
